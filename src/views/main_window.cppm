@@ -5,6 +5,7 @@
 export module main_window;
 
 import profiling;
+import yuri_log;
 import glfw;
 import skia;
 import std;
@@ -17,21 +18,32 @@ using namespace ui::layout;
 
 export class MainWindow: public Window {
   using Window::Window;
+  Splitter* splitter_ = nullptr;
 public:
   MainWindow(): Window(800, 800) {
     setPadding(80);
     setLayout<VBoxLayout<Widget>>();
 
-    const auto splitter = new Splitter(this);
-    auto button = new Button("左侧", splitter);
-    button = new Button("右侧", splitter);
-    button->background().setColor(skia_colors::light_pink);
+    splitter_ = new Splitter(this);
+    auto button = new Button("恬淡晴天", splitter_);
+    button->clicked.connect<&MainWindow::onClicked>(this);
+    button->background().setColor(skia_colors::pink);
+    button->border().visible = false;
+    auto button2 = new Box(splitter_);
+    button2->background().setColor(skia_colors::green);
+    button2->border().visible = false;
   }
 
+  void onClicked() {
+    auto button = new Button("恬淡晴天", splitter_);
+    button->clicked.connect<&MainWindow::onClicked>(this);
+    button->background().setColor(skia_colors::accent_blue);
+    button->border().visible = false;
+  }
 
 protected:
-  void paint(SkCanvas *canvas) override;
-  void render(SkCanvas *canvas) override;
+  void paint(SkCanvas *canvas) final;
+  void render(SkCanvas *canvas) final;
 
 private:
   profiling::FpsCounter fpsCounter;   // fps统计
