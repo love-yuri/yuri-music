@@ -22,23 +22,16 @@ export class MainWindow: public Window {
 public:
   MainWindow(): Window(800, 800) {
     setPadding(80);
-    setLayout<VBoxLayout<Widget>>();
+    // setLayout<VBoxLayout<Widget>>();
 
-    splitter_ = new Splitter(this);
-    auto button = new Button("恬淡晴天", splitter_);
+    auto button = new Button("恬淡晴天", this);
     button->clicked.connect<&MainWindow::onClicked>(this);
     button->background().setColor(skia_colors::pink);
     button->border().visible = false;
-    auto button2 = new Box(splitter_);
-    button2->background().setColor(skia_colors::green);
-    button2->border().visible = false;
   }
 
   void onClicked() {
-    auto button = new Button("恬淡晴天", splitter_);
-    button->clicked.connect<&MainWindow::onClicked>(this);
-    button->background().setColor(skia_colors::accent_blue);
-    button->border().visible = false;
+
   }
 
 protected:
