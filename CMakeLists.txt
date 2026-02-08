@@ -6,6 +6,7 @@ project(yuri-music LANGUAGES CXX)
 file(GLOB CXX_MODULES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cppm
     ${CMAKE_CURRENT_SOURCE_DIR}/src/views/*.cppm
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/components/*.cppm
 )
 
 add_executable(${PROJECT_NAME} ${CXX_MODULES} src/main.cpp)

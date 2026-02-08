@@ -4,6 +4,7 @@
 
 export module main_window;
 
+import components;
 import profiling;
 import yuri_log;
 import glfw;
@@ -28,6 +29,10 @@ public:
     button->clicked.connect<&MainWindow::onClicked>(this);
     button->background().setColor(skia_colors::pink);
     button->border().visible = false;
+
+    auto menu_button = new MenuButton("哈哈哈", this);
+    menu_button->setGeometry(100, 50, 200, 50);
+
   }
 
   void onClicked() {
