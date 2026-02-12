@@ -40,7 +40,7 @@ MenuButton::MenuButton(const std::string_view label, Widget *parent) :
   render_background(&self_box),
   render_text(label, &self_box),
   render_svg("/home/yuri/Downloads/file.svg") {
-  render_text.setColor(SkColorSetARGB(255, 114, 119, 131));
+  render_text.setColor(ColorFromARGB(255, 114, 119, 131));
   render_background.setColor(skia_colors::light_pink);
   render_background.setOpacity(0.1f);
   render_background.radius = &radius_;
@@ -56,14 +56,14 @@ void MenuButton::paint(SkCanvas *canvas) {
 
 void MenuButton::onMouseEnter(const float x, const float y) {
   window()->setCursor(CursorType::Hand);
-  render_text.setColor(SkColorSetARGB(255, 238, 10, 36));
+  render_text.setColor(ColorFromARGB(255, 238, 10, 36));
   const auto func = &memberThunk<RenderBackground, float, &RenderBackground::setOpacity>;
   animation_manager->start(0.f, 1.f, 200, &render_background, func);
 }
 
 void MenuButton::onMouseLeave(float x, float y) {
   window()->setCursor(CursorType::Arrow);
-  render_text.setColor(SkColorSetARGB(255, 114, 119, 131));
+  render_text.setColor(ColorFromARGB(255, 114, 119, 131));
   const auto func = &memberThunk<RenderBackground, float, &RenderBackground::setOpacity>;
   animation_manager->start(1.f, 0.1f, 200, &render_background, func);
 }
