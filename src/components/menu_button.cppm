@@ -43,7 +43,7 @@ class MenuButton : public Box {
   void drawMenu(SkCanvas* canvas);
 
 public:
-  Signal<std::string> itemClicked;
+  Signal<std::string&> itemClicked;
 
   explicit MenuButton(std::string_view text, Widget* parent = nullptr);
 
@@ -221,7 +221,7 @@ void MenuButton::onMouseLeftPressed(const float x, const float y) {
       if (items_[itemIndex].callback) {
         items_[itemIndex].callback();
       }
-      itemClicked.emit(std::move(items_[itemIndex].text));
+      itemClicked.emit(items_[itemIndex].text);
       closeMenu();
     }
   }
