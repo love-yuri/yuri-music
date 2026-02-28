@@ -1,73 +1,238 @@
 //
 // Created by yuri on 2026/2/7.
 //
-
+module;
+#if defined(_WIN32)
+// ReSharper disable once CppUnusedIncludeDirective
+#include "include/private/base/SkFloatingPoint.h"
+#endif
 export module components:menu_button;
 
 import std;
 import ui;
-import glfw;
 import skia;
+import signal;
 
-
-using namespace skia;
-using namespace glfw;
-using namespace ui::animation;
-using namespace ui::widgets;
-using namespace ui::layout;
 using namespace ui::render;
+using namespace ui::layout;
+using namespace skia;
+using namespace skia::skia_colors;
 
-export class MenuButton : public Widget {
-public:
-  explicit MenuButton(std::string_view label, Widget *parent);
+export namespace ui::widgets {
 
-protected:
-  void paint(SkCanvas *canvas) override;
-  void onMouseEnter(float x, float y) override;
-  void onMouseLeave(float x, float y) override;
-  void layoutChildren() override;
-
-private:
-  RenderBorder render_border;         // border
-  RenderBackground render_background; // background
-  RenderText render_text;             // text
-  RenderSvg render_svg;               // svg
-  float radius_ = 8;                  // radis
+struct MenuItem {
+  std::string text;
+  std::function<void()> callback;
+  bool is_separator = false;
 };
 
-MenuButton::MenuButton(const std::string_view label, Widget *parent) :
-  Widget(parent), render_border(&self_box),
-  render_background(&self_box),
-  render_text(label, &self_box),
-  render_svg("/home/yuri/Downloads/file.svg") {
-  render_text.setColor(ColorFromARGB(255, 114, 119, 131));
-  render_background.setColor(skia_colors::light_pink);
-  render_background.setOpacity(0.1f);
-  render_background.radius = &radius_;
-  render_border.radius = &radius_;
-  render_text.setAlignment(Alignment::Center);
+class MenuButton : public Box {
+  RenderText render_text;
+  bool menu_open_ = false;
+  bool hover_menu_ = false;
+  int hovered_item_ = -1;
+  float menu_width_ = 150.f;
+  float item_height_ = 28.f;
+  std::vector<MenuItem> items_;
+  SkColor bg_color_ = light_gray;
+  SkColor hover_color_ = accent_blue;
+  SkColor text_color_ = black;
+
+  void drawArrow(SkCanvas* canvas, float x, float y, float size);
+  void drawMenuItem(SkCanvas* canvas, float x, float y, float w, float h, const MenuItem& item, bool hovered);
+  void drawMenu(SkCanvas* canvas);
+
+public:
+  Signal<std::string> itemClicked;
+
+  explicit MenuButton(std::string_view text, Widget* parent = nullptr);
+
+  void setMenuWidth(float width) noexcept { menu_width_ = width; }
+  void setItemHeight(float height) noexcept { item_height_ = height; }
+  void setBgColor(SkColor color) noexcept { bg_color_ = color; }
+  void setHoverColor(SkColor color) noexcept { hover_color_ = color; }
+  void setTextColor(SkColor color) noexcept { text_color_ = color; }
+
+  void addItem(std::string_view text, std::function<void()> callback = nullptr);
+  void addSeparator();
+
+  void paint(SkCanvas* canvas) override;
+  void layoutChildren() override;
+
+  bool isMenuOpen() const noexcept { return menu_open_; }
+  void openMenu() noexcept { menu_open_ = true; }
+  void closeMenu() noexcept { menu_open_ = false; hovered_item_ = -1; }
+  void toggleMenu() noexcept { menu_open_ ? closeMenu() : openMenu(); }
+
+  void onMouseLeftPressed(float x, float y) override;
+  void onMouseMove(float x, float y) override;
+  void onMouseLeave(float x, float y) override;
+
+  int getHoveredItem(float x, float y);
+};
+
+MenuButton::MenuButton(const std::string_view text, Widget* parent)
+  : Box(parent), render_text(text, {}) {
+  render_text.setTextAndAlignment(text, Alignment::Left | Alignment::VCenter);
+  render_bg.setColor(white);
+  render_border.setColor(light_gray);
+  render_border.setWidth(1);
+  radius = 4;
+
+  const auto& textBound = render_text.textBound();
+  resize(textBound.width() + 48, textBound.height() + 12);
+  setPadding(Insets{6, 12, 6, 12});
 }
 
-void MenuButton::paint(SkCanvas *canvas) {
-  render_background.render(canvas);
+void MenuButton::addItem(const std::string_view text, std::function<void()> callback) {
+  items_.push_back({std::string(text), std::move(callback), false});
+}
+
+void MenuButton::addSeparator() {
+  items_.push_back({"", nullptr, true});
+}
+
+void MenuButton::drawArrow(SkCanvas* canvas, const float x, const float y, const float size) {
+  const auto path = SkPath::Polygon(
+    {
+      SkPoint{x, y},
+      SkPoint{x + size, y},
+      SkPoint{x + size / 2, y + size * 0.6f},
+    },
+    true
+  );
+
+  SkPaint paint;
+  paint.setColor(text_color_);
+  paint.setAntiAlias(true);
+  canvas->drawPath(path, paint);
+}
+
+void MenuButton::drawMenuItem(SkCanvas* canvas, const float x, const float y,
+                               const float w, const float h,
+                               const MenuItem& item, const bool hovered) {
+  if (item.is_separator) {
+    SkPaint paint;
+    paint.setColor(light_gray);
+    paint.setStrokeWidth(1);
+    canvas->drawLine(x + 8, y + h / 2, x + w - 8, y + h / 2, paint);
+    return;
+  }
+
+  if (hovered) {
+    SkPaint paint;
+    paint.setColor(hover_color_);
+    paint.setAntiAlias(true);
+    canvas->drawRect(SkRect::MakeXYWH(x, y, w, h), paint);
+  }
+
+  SkFont font;
+  font.setSize(13);
+  SkPaint textPaint;
+  textPaint.setColor(hovered ? white : text_color_);
+  textPaint.setAntiAlias(true);
+
+  SkRect bounds;
+  font.measureText(item.text.data(), item.text.size(), SkTextEncoding::kUTF8, &bounds);
+
+  const float textX = x + 12 - bounds.left();
+  const float textY = y + h / 2 - bounds.centerY();
+  auto blob = SkTextBlob::MakeFromText(item.text.data(), item.text.size(), font, SkTextEncoding::kUTF8);
+  canvas->drawTextBlob(blob, textX, textY, textPaint);
+}
+
+void MenuButton::drawMenu(SkCanvas* canvas) {
+  const float menuX = 0;
+  const float menuY = height_;
+  const float menuHeight = static_cast<float>(items_.size()) * item_height_;
+
+  canvas->save();
+
+  SkPaint shadowPaint;
+  shadowPaint.setColor(ColorFromARGB(0x30, 0x00, 0x00, 0x00));
+  shadowPaint.setAntiAlias(true);
+  canvas->drawRect(SkRect::MakeXYWH(menuX + 2, menuY + 2, menu_width_, menuHeight), shadowPaint);
+
+  SkPaint bgPaint;
+  bgPaint.setColor(white);
+  bgPaint.setAntiAlias(true);
+  canvas->drawRect(SkRect::MakeXYWH(menuX, menuY, menu_width_, menuHeight), bgPaint);
+
+  SkPaint borderPaint;
+  borderPaint.setColor(light_gray);
+  borderPaint.setStrokeWidth(1);
+  borderPaint.setStyle(SkPaint::kStroke_Style);
+  borderPaint.setAntiAlias(true);
+  canvas->drawRect(SkRect::MakeXYWH(menuX, menuY, menu_width_, menuHeight), borderPaint);
+
+  for (size_t i = 0; i < items_.size(); ++i) {
+    drawMenuItem(
+      canvas,
+      menuX,
+      menuY + i * item_height_,
+      menu_width_,
+      item_height_,
+      items_[i],
+      static_cast<int>(i) == hovered_item_
+    );
+  }
+
+  canvas->restore();
+}
+
+void MenuButton::paint(SkCanvas* canvas) {
+  render_bg.render(canvas);
+  render_border.render(canvas);
   render_text.render(canvas);
-  render_svg.render(canvas);
-}
 
-void MenuButton::onMouseEnter(const float x, const float y) {
-  window()->setCursor(CursorType::Hand);
-  render_text.setColor(ColorFromARGB(255, 238, 10, 36));
-  const auto func = &memberThunk<RenderBackground, float, &RenderBackground::setOpacity>;
-  animation_manager->start(0.f, 1.f, 200, &render_background, func);
-}
+  constexpr float arrowSize = 8;
+  const float arrowX = width_ - padding_.right - arrowSize - 4;
+  const float arrowY = height_ / 2 - arrowSize / 2 + 2;
+  drawArrow(canvas, arrowX, arrowY, arrowSize);
 
-void MenuButton::onMouseLeave(float x, float y) {
-  window()->setCursor(CursorType::Arrow);
-  render_text.setColor(ColorFromARGB(255, 114, 119, 131));
-  const auto func = &memberThunk<RenderBackground, float, &RenderBackground::setOpacity>;
-  animation_manager->start(1.f, 0.1f, 200, &render_background, func);
+  if (menu_open_) {
+    drawMenu(canvas);
+  }
 }
 
 void MenuButton::layoutChildren() {
-  render_text.update();
+  render_text.update(contentRect());
+  render_bg.update(borderRect());
+  render_border.update(borderRect());
 }
+
+int MenuButton::getHoveredItem(const float x, const float y) {
+  if (!menu_open_) return -1;
+
+  const float menuY = height_;
+  if (x < 0 || x > menu_width_ || y < menuY || y > menuY + items_.size() * item_height_) {
+    return -1;
+  }
+
+  return static_cast<int>((y - menuY) / item_height_);
+}
+
+void MenuButton::onMouseLeftPressed(const float x, const float y) {
+  if (y < height_) {
+    toggleMenu();
+  } else if (menu_open_) {
+    const int itemIndex = getHoveredItem(x, y);
+    if (itemIndex >= 0 && itemIndex < static_cast<int>(items_.size()) && !items_[itemIndex].is_separator) {
+      if (items_[itemIndex].callback) {
+        items_[itemIndex].callback();
+      }
+      itemClicked.emit(std::move(items_[itemIndex].text));
+      closeMenu();
+    }
+  }
+}
+
+void MenuButton::onMouseMove(const float x, const float y) {
+  hovered_item_ = getHoveredItem(x, y);
+}
+
+void MenuButton::onMouseLeave(const float, const float) {
+  hovered_item_ = -1;
+}
+
+} // namespace ui::widgets
