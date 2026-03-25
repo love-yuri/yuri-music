@@ -18,7 +18,6 @@ import glfw.api;
 using namespace ui::render;
 using namespace ui::layout;
 using namespace skia;
-using namespace skia::skia_colors;
 
 export namespace ui::widgets {
 
@@ -35,9 +34,9 @@ protected:
   void onMouseLeave(float x, float y) override;
 
 private:
-  void setOpacity(float alpha);
+  void setBackground(SkColor color);
 
-  float opacity_ = 0;     // 背景透明度
+  SkColor current_bg = skia_colors::white;   // 当前背景色
   RenderText render_text; // 渲染字体
   RenderSvg render_svg;   // 渲染svg
 };
@@ -45,9 +44,8 @@ private:
 MenuButton::MenuButton(const std::string_view text, Widget* parent)
   : Box(parent), render_text(text), render_svg(R"(E:\love-yuri\pixel-journey\test\yuri-music\resources\svg\home.svg)") {
   render_text.setTextAndAlignment(text, Alignment::CenterLeft);
-  render_bg.setColor(light_pink);
-  render_bg.setOpacity(opacity_);
-  render_border.setColor(light_gray);
+  render_bg.setColor(current_bg);
+  render_border.setColor(skia_colors::light_gray);
   render_border.setWidth(2);
   radius = 8;
 
@@ -72,17 +70,17 @@ void MenuButton::paint(SkCanvas* canvas) {
 
 void MenuButton::onMouseEnter(float x, float y) {
   window()->setCursor(glfw::CursorType::Hand);
-  animation_manager->start<&MenuButton::setOpacity>(opacity_, 1, 200, this);
+  startAnimation<&MenuButton::setBackground>(current_bg, skia_colors::light_pink, 200);
 }
 
 void MenuButton::onMouseLeave(float x, float y) {
   window()->setCursor(glfw::CursorType::Arrow);
-  animation_manager->start<&MenuButton::setOpacity>(opacity_, 0, 200, this);
+  startAnimation<&MenuButton::setBackground>(current_bg, skia_colors::white, 200);
 }
 
-void MenuButton::setOpacity(const float alpha) {
-  opacity_ = alpha;
-  render_bg.setOpacity(opacity_);
+void MenuButton::setBackground(const SkColor color) {
+  current_bg = color;
+  render_bg.setColor(color);
 }
 
 } // namespace ui::widgets
