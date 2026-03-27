@@ -6,7 +6,7 @@ Language: Cpp
 AccessModifierOffset: -2
 
 # 开括号(开圆括号、开尖括号、开方括号)后的对齐: Align, DontAlign, AlwaysBreak(总是在开括号后换行)
-AlignAfterOpenBracket: Align
+AlignAfterOpenBracket: true
 
 # 连续赋值时，对齐所有等号
 AlignConsecutiveAssignments: false
@@ -30,7 +30,7 @@ InsertNewlineAtEOF: true
 AllowAllParametersOfDeclarationOnNextLine: false
 
 # 不允许短的块放在同一行
-AllowShortBlocksOnASingleLine: true
+AllowShortBlocksOnASingleLine: "Empty"
 
 # 允许短的case标签放在同一行
 AllowShortCaseLabelsOnASingleLine: true
@@ -52,7 +52,7 @@ AlwaysBreakAfterReturnType: None
 AlwaysBreakBeforeMultilineStrings: true
 
 # 总是在template声明后换行
-AlwaysBreakTemplateDeclarations: true
+BreakTemplateDeclarations: "Yes"
 
 # false表示函数实参要么都在同一行，要么都各自一行
 BinPackArguments: true
@@ -157,7 +157,7 @@ NamespaceIndentation: None
 PointerAlignment: Right
 
 # 允许重新排版注释
-ReflowComments: true
+ReflowComments: "Always"
 
 # 允许排序#include
 SortIncludes: false
@@ -207,7 +207,7 @@ SpacesInParentheses: false
 SpacesInSquareBrackets: false
 
 # 标准: Cpp03, Cpp11, Auto
-Standard: Cpp11
+Standard: Latest
 
 # tab宽度
 TabWidth: 2
