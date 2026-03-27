@@ -30,8 +30,14 @@ public:
     button->background().setColor(skia_colors::pink);
     button->border().visible = false;
 
-    auto menu_button = new MenuButton("哈哈哈", this);
+    auto menu_button = new MenuButton("哈哈哈",  R"(E:\love-yuri\pixel-journey\test\yuri-music\resources\svg\home.svg)", this);
     menu_button->setGeometry(100, 50, 200, 50);
+
+    menu_button = new MenuButton("哈哈哈",  R"(E:\love-yuri\pixel-journey\test\yuri-music\resources\svg\home.svg)", this);
+    menu_button->setGeometry(100, 250, 200, 50);
+
+    menu_button = new MenuButton("哈哈哈",  R"(E:\love-yuri\pixel-journey\test\yuri-music\resources\svg\home.svg)", this);
+    menu_button->setGeometry(100, 450, 200, 50);
 
   }
 
@@ -39,7 +45,6 @@ public:
 
   }
 
-protected:
   void paint(SkCanvas *canvas) final;
   void render(SkCanvas *canvas) final;
 
