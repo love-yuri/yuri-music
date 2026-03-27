@@ -23,6 +23,9 @@ AlignOperands: true
 # 对齐连续的尾随的注释
 AlignTrailingComments: true
 
+# 最后一行换行
+InsertNewlineAtEOF: true
+
 # 不允许函数声明的所有参数在放在下一行
 AllowAllParametersOfDeclarationOnNextLine: false
 
@@ -52,7 +55,7 @@ AlwaysBreakBeforeMultilineStrings: true
 AlwaysBreakTemplateDeclarations: true
 
 # false表示函数实参要么都在同一行，要么都各自一行
-BinPackArguments: false
+BinPackArguments: true
 
 # false表示所有形参要么都在同一行，要么都各自一行
 BinPackParameters: false
@@ -108,7 +111,7 @@ BreakConstructorInitializers: AfterColon
 BreakStringLiterals: false
 
 # 每行字符的限制，0表示没有限制
-ColumnLimit: 0
+ColumnLimit: 100
 
 CompactNamespaces: true
 
