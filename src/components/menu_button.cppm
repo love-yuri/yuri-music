@@ -35,12 +35,12 @@ public:
   Signal<const std::string&> clicked{};
   explicit MenuButton(std::string_view text, std::string_view icon_path, Widget* parent = nullptr);
   void layoutChildren() override;
+  void paint(SkCanvas *canvas) override;
 
   void setActive(bool active);
   [[nodiscard]] bool isActive() const noexcept { return is_active; }
 
 protected:
-  void paint(SkCanvas *canvas) override;
   void onMouseEnter(float x, float y) override;
   void onMouseLeave(float x, float y) override;
   void onMouseLeftReleased(float x, float y) override;
@@ -53,7 +53,7 @@ private:
   SkColor current_text_color = default_text_color; // 当前字体颜色
   RenderText render_text;                          // 字体节点
   RenderSvg render_svg;                            // svg节点
-  std::string id{};                                // menu_button的id
+  std::string id = utils::uuid::generate();        // menu_button的id
   bool is_active = false;                          // 是否是活跃状态
 };
 
