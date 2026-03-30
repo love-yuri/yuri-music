@@ -11,7 +11,7 @@ export module components:menu_button;
 import std;
 import ui;
 import skia;
-import signal;
+import core;
 import yuri_log;
 import glfw.api;
 
@@ -19,20 +19,20 @@ using namespace ui::render;
 using namespace ui::layout;
 using namespace skia;
 
-// 暗色主题颜色常量
-constexpr SkColor default_bg_color = ColorFromARGB(0, 255, 255, 255);         // 透明
-constexpr SkColor hover_bg_color = ColorFromARGB(13, 255, 255, 255);          // rgba(255,255,255,0.05)
-constexpr SkColor active_bg_color = ColorFromARGB(38, 139, 92, 246);          // rgba(139, 92, 246, 0.15)
-constexpr SkColor active_border_color = ColorFromARGB(64, 167, 139, 250);     // rgba(167, 139, 250, 0.25)
-constexpr SkColor default_text_color = ColorFromARGB(115, 255, 255, 255);     // rgba(255, 255, 255, 0.45)
-constexpr SkColor hover_text_color = ColorFromARGB(242, 255, 255, 255);       // rgba(255,255,255,0.95)
-constexpr SkColor active_text_color = ColorFromARGB(255, 196, 181, 253);      // #c4b5fd
+// 浅色主题颜色常量
+constexpr SkColor default_bg_color = ColorFromARGB(0, 255, 255, 255);    // 透明
+constexpr SkColor hover_bg_color = ColorFromARGB(20, 0, 0, 0);           // rgba(0,0,0,0.08)
+constexpr SkColor active_bg_color = ColorFromARGB(26, 139, 92, 246);     // rgba(139, 92, 246, 0.1)
+constexpr SkColor active_border_color = ColorFromARGB(77, 139, 92, 246); // rgba(139, 92, 246, 0.3)
+constexpr SkColor default_text_color = ColorFromARGB(166, 0, 0, 0);      // rgba(0,0,0,0.65)
+constexpr SkColor hover_text_color = ColorFromARGB(217, 0, 0, 0);        // rgba(0,0,0,0.85)
+constexpr SkColor active_text_color = ColorFromARGB(255, 139, 92, 246);  // #8b5cf6
 
 export namespace ui::widgets {
 
 class MenuButton : public Box {
 public:
-  Signal<std::string_view> clicked{};
+  Signal<const std::string&> clicked{};
   explicit MenuButton(std::string_view text, std::string_view icon_path, Widget* parent = nullptr);
   void layoutChildren() override;
 
@@ -49,16 +49,16 @@ private:
   void setBackgroundColor(SkColor color);
   void setTextColor(SkColor color);
 
-  SkColor current_bg = default_bg_color;
-  SkColor current_text_color = default_text_color;
-  RenderText render_text;
-  RenderSvg render_svg;
-  std::string_view id;
-  bool is_active = false;
+  SkColor current_bg = default_bg_color;           // 当前背景颜色
+  SkColor current_text_color = default_text_color; // 当前字体颜色
+  RenderText render_text;                          // 字体节点
+  RenderSvg render_svg;                            // svg节点
+  std::string id{};                                // menu_button的id
+  bool is_active = false;                          // 是否是活跃状态
 };
 
 MenuButton::MenuButton(const std::string_view text, const std::string_view icon_path, Widget* parent)
-  : Box(parent), render_text(text), render_svg(icon_path), id(text) {
+  : Box(parent), render_text(text), render_svg(icon_path) {
   render_text.setTextAndAlignment(text, Alignment::CenterLeft);
   render_text.setColor(current_text_color);
   render_bg.setColor(current_bg);

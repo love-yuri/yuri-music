@@ -5,7 +5,7 @@
 export module main_window;
 
 import components;
-import profiling;
+import core;
 import yuri_log;
 import glfw;
 import skia;
