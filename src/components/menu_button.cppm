@@ -1,11 +1,6 @@
 //
 // Created by yuri on 2026/2/7.
 //
-module;
-#if defined(_WIN32)
-// ReSharper disable once CppUnusedIncludeDirective
-#include "include/private/base/SkFloatingPoint.h"
-#endif
 export module components:menu_button;
 
 import std;
@@ -32,13 +27,20 @@ export namespace ui::widgets {
 
 class MenuButton : public Box {
 public:
-  Signal<const std::string&> clicked{};
-  explicit MenuButton(std::string_view text, std::string_view icon_path, Widget* parent = nullptr);
+  Signal<const std::string &> clicked{};
+  explicit MenuButton(std::string_view text, std::string_view icon_path, Widget *parent = nullptr);
   void layoutChildren() override;
   void paint(SkCanvas *canvas) override;
 
   void setActive(bool active);
-  [[nodiscard]] bool isActive() const noexcept { return is_active; }
+
+  [[nodiscard]] bool isActive() const noexcept {
+    return is_active;
+  }
+
+  void setId(const std::string_view mid) {
+    id = mid;
+  }
 
 protected:
   void onMouseEnter(float x, float y) override;
@@ -53,12 +55,13 @@ private:
   SkColor current_text_color = default_text_color; // 当前字体颜色
   RenderText render_text;                          // 字体节点
   RenderSvg render_svg;                            // svg节点
-  std::string id = utils::uuid::generate();        // menu_button的id
+  std::string id = utils::uuid::generate();        // menu_button的uuid
   bool is_active = false;                          // 是否是活跃状态
 };
 
-MenuButton::MenuButton(const std::string_view text, const std::string_view icon_path, Widget* parent)
-  : Box(parent), render_text(text), render_svg(icon_path) {
+MenuButton::MenuButton(const std::string_view text,
+                       const std::string_view icon_path,
+                       Widget *parent) : Box(parent), render_text(text), render_svg(icon_path) {
   render_text.setTextAndAlignment(text, Alignment::CenterLeft);
   render_text.setColor(current_text_color);
   render_bg.setColor(current_bg);
@@ -66,13 +69,13 @@ MenuButton::MenuButton(const std::string_view text, const std::string_view icon_
   render_border.setWidth(1);
 
   render_svg.setAlignment(Alignment::CenterLeft);
-  render_svg.setPadding(Insets::fromLeft(14));  // 图标距左 14px
+  render_svg.setPadding(Insets::fromLeft(14)); // 图标距左 14px
 
   radius = 8;
 
-  const auto& textBound = render_text.textBound();
+  const auto &textBound = render_text.textBound();
   resize(textBound.width() + 60, textBound.height() + 18);
-  setPadding(Insets::fromLeft(48));  // 文字距左 48px
+  setPadding(Insets::fromLeft(48)); // 文字距左 48px
 }
 
 void MenuButton::layoutChildren() {
@@ -82,7 +85,7 @@ void MenuButton::layoutChildren() {
   render_text.update(contentRect());
 }
 
-void MenuButton::paint(SkCanvas* canvas) {
+void MenuButton::paint(SkCanvas *canvas) {
   render_bg.render(canvas);
   if (is_active) {
     render_border.render(canvas);
@@ -108,21 +111,21 @@ void MenuButton::setActive(const bool active) {
 void MenuButton::onMouseEnter(float x, float y) {
   window()->setCursor(glfw::CursorType::Hand);
   if (!is_active) {
-    startAnimation<&MenuButton::setBackgroundColor>(current_bg, hover_bg_color, 200);
-    startAnimation<&MenuButton::setTextColor>(current_text_color, hover_text_color, 200);
+    setBackgroundColor(hover_bg_color);
+    setTextColor(hover_text_color);
   }
 }
 
 void MenuButton::onMouseLeave(float x, float y) {
   window()->setCursor(glfw::CursorType::Arrow);
   if (!is_active) {
-    startAnimation<&MenuButton::setBackgroundColor>(current_bg, default_bg_color, 200);
-    startAnimation<&MenuButton::setTextColor>(current_text_color, default_text_color, 200);
+    setBackgroundColor(default_bg_color);
+    setTextColor(default_text_color);
   }
 }
 
 void MenuButton::onMouseLeftReleased(float x, float y) {
-  setActive(true);
+  setActive(!is_active);
   clicked.emit(id);
 }
 
