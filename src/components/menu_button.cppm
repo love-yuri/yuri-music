@@ -95,23 +95,24 @@ void MenuButton::paint(SkCanvas *canvas) {
 }
 
 void MenuButton::setActive(const bool active) {
-  if (is_active == active) return;
+  if (is_active == active) {
+    return;
+  }
+
   is_active = active;
   if (is_active) {
-    current_bg = active_bg_color;
-    current_text_color = active_text_color;
+    startAnimation<&MenuButton::setBackgroundColor>(current_bg, active_bg_color, 250);
+    setTextColor(active_text_color);
   } else {
-    current_bg = default_bg_color;
-    current_text_color = default_text_color;
+    startAnimation<&MenuButton::setBackgroundColor>(current_bg, default_bg_color, 250);
+    setTextColor(default_text_color);
   }
-  render_bg.setColor(current_bg);
-  render_text.setColor(current_text_color);
 }
 
 void MenuButton::onMouseEnter(float x, float y) {
   window()->setCursor(glfw::CursorType::Hand);
   if (!is_active) {
-    setBackgroundColor(hover_bg_color);
+    startAnimation<&MenuButton::setBackgroundColor>(current_bg, hover_bg_color, 250);
     setTextColor(hover_text_color);
   }
 }
@@ -119,7 +120,7 @@ void MenuButton::onMouseEnter(float x, float y) {
 void MenuButton::onMouseLeave(float x, float y) {
   window()->setCursor(glfw::CursorType::Arrow);
   if (!is_active) {
-    setBackgroundColor(default_bg_color);
+    startAnimation<&MenuButton::setBackgroundColor>(current_bg, default_bg_color, 250);
     setTextColor(default_text_color);
   }
 }

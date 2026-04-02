@@ -4,10 +4,10 @@
 
 export module main_window;
 
+import page_view;
 import components;
 import pages;
 import core;
-import yuri_log;
 import glfw;
 import skia;
 import std;
@@ -27,17 +27,14 @@ public:
 
 private:
   void setupSidebar();
-  void setupPages();
-  void showPage(const std::string &id);
+  void setupPages() const;
   void onMenuClicked(const std::string &id);
 
   Splitter *splitter_ = nullptr;
   Box *sidebar_ = nullptr;
-  Box *content_ = nullptr;
+  PageView *page_view_ = nullptr;
 
-  std::unordered_map<std::string, Widget *> pages_;
   std::unordered_map<std::string, MenuButton *> menu_buttons_;
-  std::string current_page_ = "home";
 
   static constexpr auto home_svg =
     R"(E:\love-yuri\pixel-journey\test\yuri-music\resources\svg\home.svg)";
@@ -50,13 +47,12 @@ MainWindow::MainWindow() : Window(1024, 700) {
   sidebar_->setPadding(16);
   sidebar_->setLayout<VBoxLayout<Widget>>();
 
-  content_ = new Box(splitter_);
-  content_->setLayout<VBoxLayout<Widget>>();
+  page_view_ = new PageView(splitter_);
 
   setLayout<VBoxLayout<Widget>>();
   setupSidebar();
   setupPages();
-  showPage("home");
+  page_view_->showPage("home");
 }
 
 void MainWindow::setupSidebar() {
@@ -80,36 +76,22 @@ void MainWindow::setupSidebar() {
   }
 }
 
-void MainWindow::setupPages() {
-  pages_["home"] = new pages::HomePage(content_);
-  pages_["browse"] = new pages::BrowsePage(content_);
-  pages_["search"] = new pages::SearchPage(content_);
-  pages_["library"] = new pages::LibraryPage(content_);
-  pages_["favorites"] = new pages::FavoritesPage(content_);
-  pages_["recent"] = new pages::RecentPage(content_);
-  pages_["settings"] = new pages::SettingsPage(content_);
-
-  for (const auto &page : pages_ | std::views::values) {
-    page->setVisible(false);
-  }
+void MainWindow::setupPages() const {
+  page_view_->addPage("home", new pages::HomePage(page_view_));
+  page_view_->addPage("browse", new pages::BrowsePage(page_view_));
+  page_view_->addPage("search", new pages::SearchPage(page_view_));
+  page_view_->addPage("library", new pages::LibraryPage(page_view_));
+  page_view_->addPage("favorites", new pages::FavoritesPage(page_view_));
+  page_view_->addPage("recent", new pages::RecentPage(page_view_));
+  page_view_->addPage("settings", new pages::SettingsPage(page_view_));
 }
 
-void MainWindow::showPage(const std::string &id) {
-  if (!pages_.contains(id)) return;
-
-  for (auto &[pid, page] : pages_) {
-    page->setVisible(pid == id);
-  }
+void MainWindow::onMenuClicked(const std::string &id) {
+  page_view_->showPage(id);
 
   for (auto &[mid, btn] : menu_buttons_) {
     btn->setActive(mid == id);
   }
-
-  current_page_ = id;
-}
-
-void MainWindow::onMenuClicked(const std::string &id) {
-  showPage(id);
 }
 
 void MainWindow::render(SkCanvas *canvas) {
