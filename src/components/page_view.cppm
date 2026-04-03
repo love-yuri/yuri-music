@@ -31,7 +31,7 @@ public:
    * 切换到指定页面, 带有 fade + translateY 动画
    * @param id 目标页面标识
    */
-  void showPage(const std::string &id);
+  void showPage(std::string_view id);
 
   /**
    * 获取当前页面标识
@@ -77,7 +77,7 @@ void PageView::addPage(const std::string_view id, Widget *page) {
   pages_.emplace_back(id, page);
 }
 
-void PageView::showPage(const std::string &id) {
+void PageView::showPage(const std::string_view id) {
   const auto target = std::ranges::find(pages_, id, &PageEntry::first);
   if (target == pages_.end() || target->first == current_page_) return;
 
@@ -98,8 +98,7 @@ void PageView::showPage(const std::string &id) {
 
   // 启动 fade + slide 动画
   anim_progress_ = 0.f;
-  animation_manager->start<&PageView::setAnimProgress>(0.f, 1.f, kAnimDuration, CubicBezier::Ease(),
-                                                       this);
+  startAnimation(0.f, 1.f, kAnimDuration, &anim_progress_, CubicBezier::Ease());
 }
 
 [[nodiscard]] const std::string &PageView::currentPage() const {
