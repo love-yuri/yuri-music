@@ -14,7 +14,7 @@ using namespace ui::animation;
 
 /**
  * 页面容器
- * 管理多个页面, 同时仅展示一个, 支持 fade + translateY 切换动画
+ * 管理多个页面, 同时仅展示一个, 支持 fade + slide + scale 切换动画
  */
 export class PageView : public Widget {
 public:
@@ -28,7 +28,7 @@ public:
   void addPage(std::string_view id, Widget *page);
 
   /**
-   * 切换到指定页面, 带有 fade + translateY 动画
+   * 切换到指定页面, 带有 fade + slide + scale 组合动画
    * @param id 目标页面标识
    */
   void showPage(std::string_view id);
@@ -44,7 +44,7 @@ public:
   void layoutChildren() override;
 
   /**
-   * 渲染页面内容, 动画期间对新旧页面应用透明度和位移
+   * 渲染页面内容, 动画期间对新旧页面应用组合效果
    * @param canvas Skia 画布
    */
   void render(SkCanvas *canvas) override;
@@ -64,12 +64,23 @@ private:
    */
   [[nodiscard]] Widget *currentPageWidget() const;
 
+  /**
+   * 缓动函数: 快出慢入, 前段加速后段减速
+   * @param t 线性进度 [0, 1]
+   * @return 缓动后的进度
+   */
+  [[nodiscard]] static float easeOutQuart(float t);
+
   std::vector<PageEntry> pages_;
   std::string current_page_;
   float anim_progress_ = 1.f;
 
-  static constexpr float kFadeOffset = 8.f;
-  static constexpr float kAnimDuration = 300.f;
+  // 新页面入场参数: translateY 从 +offset 到 0
+  static constexpr float kSlideOffset = 20.f;
+  // 新页面入场参数: scale 从 kScaleFrom 到 1.0
+  static constexpr float kScaleFrom = 0.96f;
+  // 动画总时长 (ms)
+  static constexpr float kAnimDuration = 420.f;
 };
 
 void PageView::addPage(const std::string_view id, Widget *page) {
@@ -96,9 +107,9 @@ void PageView::showPage(const std::string_view id) {
   target->second->setGeometry(0, 0, w, h);
   target->second->updateLayout();
 
-  // 启动 fade + slide 动画
+  // 启动组合动画: fade + slide + scale
   anim_progress_ = 0.f;
-  startAnimation(0.f, 1.f, kAnimDuration, &anim_progress_, CubicBezier::Ease());
+  startAnimation(0.f, 1.f, kAnimDuration, &anim_progress_, CubicBezier::EaseOut());
 }
 
 [[nodiscard]] const std::string &PageView::currentPage() const {
@@ -133,9 +144,18 @@ void PageView::render(SkCanvas *canvas) {
     canvas->save();
 
     if (animating && child == cur_widget) {
-      // 新页面: opacity 0→1, translateY +8px→0
-      canvas->saveLayerAlphaf(nullptr, anim_progress_ * 255.f);
-      canvas->translate(0, (1.f - anim_progress_) * kFadeOffset);
+      const float t = easeOutQuart(anim_progress_);
+      // 新页面: opacity 0 → 1
+      canvas->saveLayerAlphaf(nullptr, t * 255.f);
+      // 新页面: translateY +20px → 0
+      canvas->translate(0, (1.f - t) * kSlideOffset);
+      // 新页面: scale 0.96 → 1.0 (以中心为锚点)
+      const float scale = kScaleFrom + (1.f - kScaleFrom) * t;
+      const float cx = child->width() * 0.5f;
+      const float cy = child->height() * 0.5f;
+      canvas->translate(cx, cy);
+      canvas->scale(scale, scale);
+      canvas->translate(-cx, -cy);
     }
 
     child->render(canvas);
@@ -157,4 +177,10 @@ void PageView::setAnimProgress(const float progress) {
 [[nodiscard]] Widget *PageView::currentPageWidget() const {
   const auto it = std::ranges::find(pages_, current_page_, &PageEntry::first);
   return it != pages_.end() ? it->second : nullptr;
+}
+
+[[nodiscard]] float PageView::easeOutQuart(const float t) {
+  // easeOutQuart: 1 - (1-t)^4, 快速启动后缓慢停止, 视觉上有弹性感
+  const float u = 1.f - t;
+  return 1.f - u * u * u * u;
 }
