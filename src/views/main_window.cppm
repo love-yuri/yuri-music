@@ -53,6 +53,7 @@ MainWindow::MainWindow() : Window(1024, 700) {
   setupSidebar();
   setupPages();
   page_view_->showPage("home");
+  menu_buttons_["home"]->setActive(true);
 }
 
 void MainWindow::setupSidebar() {

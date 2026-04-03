@@ -75,7 +75,7 @@ MenuButton::MenuButton(const std::string_view text,
 
   const auto &textBound = render_text.textBound();
   resize(textBound.width() + 60, textBound.height() + 18);
-  setPadding(Insets::fromLeft(48)); // 文字距左 48px
+  render_text.setPadding(Insets::fromLeft(48)); // 文字距左 48px
 }
 
 void MenuButton::layoutChildren() {
