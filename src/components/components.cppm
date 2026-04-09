@@ -5,3 +5,6 @@
 export module components;
 
 export import :menu_button;
+export import :section_header;
+export import :song_item;
+export import :quick_card;

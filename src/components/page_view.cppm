@@ -76,7 +76,7 @@ private:
   float anim_progress_ = 1.f;
 
   // 新页面入场参数: translateY 从 +offset 到 0
-  static constexpr float kSlideOffset = 20.f;
+  static constexpr float kSlideOffset = 200.f;
   // 新页面入场参数: scale 从 kScaleFrom 到 1.0
   static constexpr float kScaleFrom = 0.96f;
   // 动画总时长 (ms)
