@@ -7,6 +7,7 @@ import std;
 import ui;
 import core;
 import skia;
+import glfw.api;
 
 using namespace ui::render;
 using namespace ui::layout;
@@ -54,6 +55,11 @@ private:
    */
   void setBackgroundColor(SkColor color) noexcept;
 
+  /**
+   * 设置padding button
+   */
+  void setPaddingBottom(float padding) noexcept;
+
   RenderBackground icon_bg;        // icon 背景
   float icon_radius = kIconRadius; // icon 圆角大小
   RenderText title_text;           // 标题
@@ -98,13 +104,17 @@ QuickCard::QuickCard(const std::string_view title,
 void QuickCard::onMouseEnter(float, float) {
   is_pressed = false;
   render_border.setColor(skia_colors::pink);
+  window()->setCursor(glfw::CursorType::HResize);
   startAnimation<&QuickCard::setBackgroundColor>(bg_color, kCardHoverColor, 150.0f);
+  startAnimation<&QuickCard::setPaddingBottom>(padding_.bottom, 7.f, 150.0f);
 }
 
 void QuickCard::onMouseLeave(float, float) {
   is_pressed = false;
   render_border.setColor(skia_colors::light_gray);
+  window()->setCursor(glfw::CursorType::Arrow);
   startAnimation<&QuickCard::setBackgroundColor>(bg_color, kCardBgColor, 150.0f, CubicBezier::EaseOut());
+  startAnimation<&QuickCard::setPaddingBottom>(padding_.bottom, 0.f, 150.0f);
 }
 
 void QuickCard::onMouseLeftPressed(float, float) {
@@ -121,6 +131,11 @@ void QuickCard::onMouseLeftReleased(float, float) {
 void QuickCard::setBackgroundColor(const SkColor color) noexcept {
   bg_color = color;
   render_bg.setColor(color);
+}
+
+void QuickCard::setPaddingBottom(const float padding) noexcept {
+  padding_.bottom = padding;
+  markLayoutDirty(LayoutDirty::Self);
 }
 
 void QuickCard::layoutChildren() {
