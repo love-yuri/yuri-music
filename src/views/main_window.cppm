@@ -32,12 +32,11 @@ private:
 
   Splitter *splitter_ = nullptr;
   Box *sidebar_ = nullptr;
-  PageView *page_view_ = nullptr;
+  PageView *page_view = nullptr;
 
-  std::unordered_map<std::string, MenuButton *> menu_buttons_;
+  std::unordered_map<std::string, MenuButton *> menu_buttons;
 
-  static constexpr auto home_svg =
-    R"(E:\love-yuri\pixel-journey\test\yuri-music\resources\svg\home.svg)";
+  static constexpr auto home_svg = "resources/svg/home.svg";
 };
 
 MainWindow::MainWindow() : Window(1024, 700) {
@@ -47,13 +46,13 @@ MainWindow::MainWindow() : Window(1024, 700) {
   sidebar_->setPadding(16);
   sidebar_->setLayout<VBoxLayout<Widget>>();
 
-  page_view_ = new PageView(splitter_);
+  page_view = new PageView(splitter_);
 
   setLayout<VBoxLayout<Widget>>();
   setupSidebar();
   setupPages();
-  page_view_->showPage("home");
-  menu_buttons_["home"]->setActive(true);
+  page_view->showPage("home");
+  menu_buttons["home"]->setActive(true);
 }
 
 void MainWindow::setupSidebar() {
@@ -73,24 +72,24 @@ void MainWindow::setupSidebar() {
     btn->setId(id);
     btn->clicked.connect<&MainWindow::onMenuClicked>(this);
     btn->setMaxHeight(50);
-    menu_buttons_[id] = btn;
+    menu_buttons[id] = btn;
   }
 }
 
 void MainWindow::setupPages() const {
-  page_view_->addPage("home", new pages::HomePage(page_view_));
-  page_view_->addPage("browse", new pages::BrowsePage(page_view_));
-  page_view_->addPage("search", new pages::SearchPage(page_view_));
-  page_view_->addPage("library", new pages::LibraryPage(page_view_));
-  page_view_->addPage("favorites", new pages::FavoritesPage(page_view_));
-  page_view_->addPage("recent", new pages::RecentPage(page_view_));
-  page_view_->addPage("settings", new pages::SettingsPage(page_view_));
+  page_view->addPage("home", new pages::HomePage(page_view));
+  page_view->addPage("browse", new pages::BrowsePage(page_view));
+  page_view->addPage("search", new pages::SearchPage(page_view));
+  page_view->addPage("library", new pages::LibraryPage(page_view));
+  page_view->addPage("favorites", new pages::FavoritesPage(page_view));
+  page_view->addPage("recent", new pages::RecentPage(page_view));
+  page_view->addPage("settings", new pages::SettingsPage(page_view));
 }
 
 void MainWindow::onMenuClicked(const std::string &id) {
-  page_view_->showPage(id);
+  page_view->showPage(id);
 
-  for (auto &[mid, btn] : menu_buttons_) {
+  for (auto &[mid, btn] : menu_buttons) {
     btn->setActive(mid == id);
   }
 }

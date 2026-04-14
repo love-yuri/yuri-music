@@ -21,3 +21,11 @@ target_sources(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME} yuri_lib)
 
+# 构建后自动拷贝 resources 到可执行文件目录
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/resources
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>/resources
+    COMMENT "拷贝资源文件到指定目录..."
+)
+
