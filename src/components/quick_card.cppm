@@ -55,17 +55,12 @@ private:
    */
   void setBackgroundColor(SkColor color) noexcept;
 
-  /**
-   * 设置视觉Y偏移（用于上浮动画）
-   */
-  void setOffsetY(float offset) noexcept;
-
   RenderBackground icon_bg;        // icon 背景
   float icon_radius = kIconRadius; // icon 圆角大小
   RenderText title_text;           // 标题
   RenderText subtitle_text;        // 子标题
   SkColor bg_color = kCardBgColor; // 当前背景色
-  float offset_y_ = 0.f;             // 视觉Y偏移（上浮动画用）
+  float offset_y = 0.f;            // 视觉Y偏移（上浮动画用）
   bool is_pressed = false;         // 是否正在被按下
 };
 
@@ -107,7 +102,7 @@ void QuickCard::onMouseEnter(float, float) {
   render_border.setColor(skia_colors::pink);
   window()->setCursor(glfw::CursorType::Hand);
   startAnimation<&QuickCard::setBackgroundColor>(bg_color, kCardHoverColor, 150.0f);
-  startAnimation<&QuickCard::setOffsetY>(offset_y_, -4.f, 150.0f);
+  startAnimation(offset_y, -4.f, 150.f, &offset_y);
 }
 
 void QuickCard::onMouseLeave(float, float) {
@@ -115,7 +110,7 @@ void QuickCard::onMouseLeave(float, float) {
   render_border.setColor(skia_colors::light_gray);
   window()->setCursor(glfw::CursorType::Arrow);
   startAnimation<&QuickCard::setBackgroundColor>(bg_color, kCardBgColor, 150.0f, CubicBezier::EaseOut());
-  startAnimation<&QuickCard::setOffsetY>(offset_y_, 0.f, 150.0f);
+  startAnimation(offset_y, 0.f, 150.0f, &offset_y);
 }
 
 void QuickCard::onMouseLeftPressed(float, float) {
@@ -132,10 +127,6 @@ void QuickCard::onMouseLeftReleased(float, float) {
 void QuickCard::setBackgroundColor(const SkColor color) noexcept {
   bg_color = color;
   render_bg.setColor(color);
-}
-
-void QuickCard::setOffsetY(const float offset) noexcept {
-  offset_y_ = offset;
 }
 
 void QuickCard::layoutChildren() {
@@ -164,7 +155,7 @@ void QuickCard::layoutChildren() {
 
 void QuickCard::paint(SkCanvas *canvas) {
   canvas->save();
-  canvas->translate(0, offset_y_);
+  canvas->translate(0, offset_y);
   render_bg.render(canvas);
   icon_bg.render(canvas);
   title_text.render(canvas);

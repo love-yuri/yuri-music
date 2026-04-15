@@ -50,6 +50,7 @@ HomePage::HomePage(Widget *parent) :
 
   // 使用垂直布局排列子控件
   setLayout<VBoxLayout<Widget>>();
+  layout()->setSpacing(6);
 
   // 标题
   greeting_text->setFontSize(28);
@@ -63,11 +64,20 @@ HomePage::HomePage(Widget *parent) :
   subtitle_text->setAlignment(Alignment::CenterLeft);
   subtitle_text->setMaxHeight(40.f);
 
-  const auto card = new QuickCard("每日推荐", "为你精选的 30 首歌曲", kIconBlue, this);
+  auto card = new QuickCard("每日推荐", "为你精选的 30 首歌曲", kIconBlue, this);
   card->clicked.connect([] {
     yuri::info("hhhh");
   });
 
+  card = new QuickCard("每日推荐", "为你精选的 30 首歌曲", kIconBlue, this);
+  card->clicked.connect([] {
+    yuri::info("hhhh");
+  });
+
+  card = new QuickCard("每日推荐", "为你精选的 30 首歌曲", kIconBlue, this);
+  card->clicked.connect([] {
+    yuri::info("hhhh");
+  });
 }
 
 } // namespace pages
