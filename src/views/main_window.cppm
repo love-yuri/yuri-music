@@ -48,6 +48,8 @@ private:
 
 MainWindow::MainWindow() : Window(1024, 700) {
   splitter_ = new Splitter(this);
+  splitter_->setMinLeftWidth(200.f);
+  splitter_->setMaxLeftWidth(300.f);
 
   sidebar_ = new Box(splitter_);
   sidebar_->setPadding(16);
