@@ -1,0 +1,3 @@
+[submodule "libs/qq-music-api"]
+	path = libs/qq-music-api
+	url = git@github.com:love-yuri/qq-music-api.git

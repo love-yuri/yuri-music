@@ -19,7 +19,9 @@ target_sources(${PROJECT_NAME}
     ${CXX_MODULES}
 )
 
+add_subdirectory(libs/qq-music-api)
 target_link_libraries(${PROJECT_NAME} yuri_lib)
+target_link_libraries(${PROJECT_NAME} qq_music_api)
 
 # 构建后自动拷贝 resources 到可执行文件目录
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
