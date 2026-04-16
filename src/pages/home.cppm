@@ -38,8 +38,8 @@ public:
   explicit HomePage(Widget *parent = nullptr);
 
 private:
-  Text* greeting_text; // 标题
-  Text* subtitle_text; // 子标题
+  Text* greeting_text{}; // 标题
+  Text* subtitle_text{}; // 子标题
 };
 
 HomePage::HomePage(Widget *parent) :
@@ -78,6 +78,12 @@ HomePage::HomePage(Widget *parent) :
   card->clicked.connect([] {
     yuri::info("hhhh");
   });
+
+  const auto items = new Widget(this);
+  items->setLayout<VBoxLayout<Widget>>();
+  for (int i = 0; i < 6; i++) {
+    new SongItem(i, std::format("{}", i), "", "", items);
+  }
 }
 
 } // namespace pages

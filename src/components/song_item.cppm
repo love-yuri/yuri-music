@@ -115,6 +115,7 @@ SongItem::SongItem(const int index,
 
 void SongItem::onMouseEnter(float, float) {
   is_pressed_ = false;
+  yuri::info("enter: {}", index_text_.text());
   startAnimation<&SongItem::setHoverBackgroundColor>(bg_color_, kHoverBgColor, 150.0f);
 }
 
