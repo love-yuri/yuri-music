@@ -81,9 +81,12 @@ HomePage::HomePage(Widget *parent) :
 
   const auto items = new Widget(this);
   items->setLayout<VBoxLayout<Widget>>();
-  for (int i = 0; i < 6; i++) {
-    new SongItem(i, std::format("{}", i), "", "", items);
-  }
+  const auto item = new SongItem(0, "夜曲", "周杰伦 · 十一月的肖邦", "4:25", false, items);
+  item->setSelected(true);
+  new SongItem(1, "晴天", "周杰伦 · 叶惠美", "4:29", false, items);
+  new SongItem(2, "起风了", "买辣椒也用券", "5:21", false, items);
+  new SongItem(3, "稻香", "周杰伦 · 魔杰座", "3:43", false, items);
+  new SongItem(4, "七里香", "周杰伦 · 七里香", "4:59", false, items);
 }
 
 } // namespace pages
