@@ -8,6 +8,8 @@ import ui;
 import core;
 import skia;
 import components;
+import thread_pool;
+import qq_music_api;
 
 using namespace ui::layout;
 using namespace ui::widgets;
@@ -81,12 +83,26 @@ HomePage::HomePage(Widget *parent) :
 
   const auto items = new Widget(this);
   items->setLayout<VBoxLayout<Widget>>();
-  const auto item = new SongItem(0, "夜曲", "周杰伦 · 十一月的肖邦", "4:25", false, items);
-  item->setSelected(true);
-  new SongItem(1, "晴天", "周杰伦 · 叶惠美", "4:29", false, items);
-  new SongItem(2, "起风了", "买辣椒也用券", "5:21", false, items);
-  new SongItem(3, "稻香", "周杰伦 · 魔杰座", "3:43", false, items);
-  new SongItem(4, "七里香", "周杰伦 · 七里香", "4:59", false, items);
+
+  thread_manager->addTask([items, this] {
+    auto list = qqmusic_api::playlist::get_user_playlists();
+    for (auto &value : list.data.disslist) {
+      yuri::info("---------- name: {} id: {} ------------", value.diss_name, value.tid);
+      auto res = qqmusic_api::playlist::get_user_playlists_detail(value.tid, 0, 5).req_1.data;
+      for (auto &music : res.songlist) {
+        yuri::info("name: {}", music.name);
+      }
+
+      if (value.diss_name == "我喜欢") {
+        int index = 0;
+        for (auto &music : res.songlist) {
+          new SongItem(index++, music.title, music.label, "5:21", false, items);
+        }
+
+        markLayoutDirty();
+      }
+    }
+  });
 }
 
 } // namespace pages
