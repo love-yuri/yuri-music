@@ -13,7 +13,10 @@ using namespace ui::render;
 using namespace ui::layout;
 using namespace ui::widgets;
 using namespace ui::animation;
+using namespace ui::algorithm;
 using namespace skia;
+
+// --- 颜色常量 ---
 
 // 序号/时长文字颜色
 constexpr SkColor kMutedColor = ColorFromARGB(160, 0, 0, 0);
@@ -24,7 +27,7 @@ constexpr SkColor kCoverColor = ColorFromARGB(255, 99, 102, 241);
 // 悬浮背景色
 constexpr SkColor kHoverBgColor = ColorFromARGB(255, 245, 245, 252);
 // 按下背景色
-constexpr SkColor kPressBgColor = ColorFromARGB(255, 235, 235, 248);
+constexpr SkColor kPressBgColor = ColorFromARGB(255, 228, 228, 242);
 // 播放中背景色
 constexpr SkColor kPlayingBgColor = ColorFromARGB(20, 139, 92, 246);
 // 播放中序号颜色
@@ -35,6 +38,8 @@ constexpr SkColor kActionBtnColor = ColorFromARGB(140, 0, 0, 0);
 constexpr SkColor kLikedColor = ColorFromARGB(255, 244, 114, 182);
 // 选中背景色
 constexpr SkColor kSelectedBgColor = ColorFromARGB(255, 235, 235, 240);
+
+// --- 布局常量 ---
 
 // 封面尺寸
 static constexpr float kCoverSize = 44.0f;
@@ -59,6 +64,11 @@ export namespace components {
 
 /**
  * 歌曲行组件：序号 + 封面色块 + 歌曲名/歌手 + 时长 + 操作按钮
+ *
+ * 动画模型：每个交互状态拥有独立的 float 进度通道 [0,1]，
+ * 互不干扰，在 paint() 中按层叠加合成最终背景色。
+ *
+ *   base(playing/transparent) → select 层 → hover 层 → press 层
  */
 class SongItem : public Widget {
 public:
@@ -90,28 +100,43 @@ protected:
   void onMouseLeftReleased(float x, float y) override;
 
 private:
-  /** 设置悬浮背景色 */
-  void setHoverBackgroundColor(SkColor color) noexcept;
-  /** 判断鼠标是否悬浮在操作按钮上 */
+  /** 根据各动画通道合成最终背景色 */
+  [[nodiscard]] SkColor computeBackgroundColor() const noexcept;
+  /** 判断鼠标是否悬浮在心形按钮上 */
   [[nodiscard]] bool isOverHeart(float x, float y) const;
+  /** 判断鼠标是否悬浮在更多按钮上 */
   [[nodiscard]] bool isOverMore(float x, float y) const;
 
-  RenderText index_text;                       // 序号
-  RenderBackground cover_bg;                   // 封面背景
-  RenderSvg cover_svg;                         // 封面 SVG
-  float cover_radius = kCoverRadius;           // 封面圆角
-  RenderText title_text;                       // 标题
-  RenderText artist_text;                      // 歌手
-  RenderText duration_text;                    // 时长
-  RenderBackground hover_bg;                   // 悬浮背景
-  float hover_radius = 8.0f;                   // 悬浮圆角
-  SkColor bg_color = skia_colors::transparent; // 当前背景色
-  bool is_pressed = false;                     // 是否正在被按下
-  bool is_playing = false;                     // 是否播放中
-  bool liked = false;                          // 是否已喜欢
-  bool is_hovering = false;                    // 是否悬浮中
-  bool selected = false;                       // 是否被选中
-  std::uint64_t last_click_time = 0;           // 上次点击时间
+  // --- 动画 setter（供 startAnimation 调用） ---
+  void setHoverT(const float t) noexcept { hover_t = t; }
+  void setPressT(const float t) noexcept { press_t = t; }
+  void setSelectT(const float t) noexcept { select_t = t; }
+  void setActionT(const float t) noexcept { action_t = t; }
+
+  // --- 渲染节点 ---
+  RenderText index_text;             // 序号
+  RenderBackground cover_bg;         // 封面背景
+  RenderSvg cover_svg;               // 封面 SVG
+  float cover_radius = kCoverRadius; // 封面圆角
+  RenderText title_text;             // 标题
+  RenderText artist_text;            // 歌手
+  RenderText duration_text;          // 时长
+  RenderBackground hover_bg;         // 行背景（覆盖整行）
+  float hover_radius = 8.0f;         // 行背景圆角
+
+  // --- 交互状态 ---
+  bool is_playing = false;           // 是否播放中
+  bool liked = false;                // 是否已喜欢
+  bool is_hovering = false;          // 是否悬浮中
+  bool is_pressed = false;           // 是否正在被按下
+  bool selected = false;             // 是否被选中
+  std::uint64_t last_click_time = 0; // 上次点击时间
+
+  // --- 动画进度（独立通道，互不干扰） ---
+  float hover_t = 0.0f;  // 悬浮渐入 [0,1]
+  float press_t = 0.0f;  // 按下效果 [0,1]
+  float select_t = 0.0f; // 选中渐入 [0,1]
+  float action_t = 0.0f; // 操作按钮透明度 [0,1]
 };
 
 SongItem::SongItem(const int index,
@@ -150,8 +175,7 @@ SongItem::SongItem(const int index,
   duration_text.setColor(kMutedColor);
   duration_text.setAlignment(Alignment::CenterRight);
 
-  // 悬浮背景
-  hover_bg.setColor(is_playing ? kPlayingBgColor : bg_color);
+  // 行背景
   hover_bg.radius = &hover_radius;
 
   // 固定高度
@@ -159,31 +183,58 @@ SongItem::SongItem(const int index,
   setMinHeight(kRowHeight);
 }
 
+SkColor SongItem::computeBackgroundColor() const noexcept {
+  // 底层：播放中背景，否则透明
+  SkColor bg = is_playing ? kPlayingBgColor : skia_colors::transparent;
+  // 选中层
+  if (select_t > 0.0f) {
+    bg = lerp(bg, kSelectedBgColor, select_t);
+  }
+  // 悬浮层
+  if (hover_t > 0.0f) {
+    bg = lerp(bg, kHoverBgColor, hover_t);
+  }
+  // 按下层（最顶层）
+  if (press_t > 0.0f) {
+    bg = lerp(bg, kPressBgColor, press_t);
+  }
+  return bg;
+}
+
 void SongItem::onMouseEnter(float, float) {
   is_pressed = false;
   is_hovering = true;
-  startAnimation<&SongItem::setHoverBackgroundColor>(bg_color, kHoverBgColor, 150.0f);
+  // 悬浮背景渐入
+  startAnimation<&SongItem::setHoverT>(hover_t, 1.0f, 200.0f, CubicBezier::EaseOut());
+  // 操作按钮淡入
+  startAnimation<&SongItem::setActionT>(action_t, 1.0f, 200.0f, CubicBezier::EaseOut());
 }
 
 void SongItem::onMouseLeave(float, float) {
   is_pressed = false;
   is_hovering = false;
   window()->setCursor(glfw::CursorType::Arrow);
-  const auto target =
-    is_playing ? kPlayingBgColor : (selected ? kSelectedBgColor : skia_colors::transparent);
-  startAnimation<&SongItem::setHoverBackgroundColor>(bg_color, target, 150.0f,
-                                                     CubicBezier::EaseOut());
+  // 悬浮背景渐出（比渐入稍慢，体感更柔和）
+  startAnimation<&SongItem::setHoverT>(hover_t, 0.0f, 280.0f, CubicBezier::EaseOut());
+  // 按下效果归零
+  if (press_t > 0.0f) {
+    startAnimation<&SongItem::setPressT>(press_t, 0.0f, 150.0f, CubicBezier::EaseOut());
+  }
+  // 操作按钮淡出
+  startAnimation<&SongItem::setActionT>(action_t, 0.0f, 200.0f, CubicBezier::EaseOut());
 }
 
 void SongItem::onMouseLeftPressed(float, float) {
   is_pressed = true;
-  startAnimation<&SongItem::setHoverBackgroundColor>(bg_color, kPressBgColor, 100.0f,
-                                                     CubicBezier::EaseOut());
+  // 按下效果快速响应
+  startAnimation<&SongItem::setPressT>(press_t, 1.0f, 80.0f, CubicBezier::EaseOut());
 }
 
 void SongItem::onMouseLeftReleased(float x, float y) {
   is_pressed = false;
-  startAnimation<&SongItem::setHoverBackgroundColor>(bg_color, kHoverBgColor, 100.0f);
+
+  // 按下效果释放
+  startAnimation<&SongItem::setPressT>(press_t, 0.0f, 160.0f, CubicBezier::EaseOut());
 
   if (isOverHeart(x, y)) {
     liked = !liked;
@@ -216,11 +267,6 @@ void SongItem::onMouseLeftReleased(float x, float y) {
   }
 }
 
-void SongItem::setHoverBackgroundColor(const SkColor color) noexcept {
-  bg_color = color;
-  hover_bg.setColor(color);
-}
-
 void SongItem::onMouseMove(float x, float y) {
   if (isOverHeart(x, y) || isOverMore(x, y)) {
     window()->setCursor(glfw::CursorType::Hand);
@@ -232,15 +278,10 @@ void SongItem::onMouseMove(float x, float y) {
 void SongItem::setSelected(const bool value) {
   if (selected == value) return;
   selected = value;
-  if (!is_hovering && !is_pressed) {
-    const auto target =
-      is_playing ? kPlayingBgColor : (selected ? kSelectedBgColor : skia_colors::transparent);
-    bg_color = target;
-    hover_bg.setColor(target);
-  }
+  startAnimation<&SongItem::setSelectT>(select_t, value ? 1.0f : 0.0f, 250.0f, CubicBezier::EaseOut());
 }
 
-bool SongItem::isOverHeart(float x, float y) const {
+bool SongItem::isOverHeart(const float x, const float y) const {
   const float heart_cx = contentWidth() - 56.0f;
   constexpr float btn_cy = kRowHeight * 0.5f;
   const float dx = x - heart_cx;
@@ -259,7 +300,7 @@ bool SongItem::isOverMore(float x, float y) const {
 void SongItem::layoutChildren() {
   const auto rect = contentRect();
 
-  // 悬浮背景
+  // 行背景
   hover_bg.update(borderRect());
 
   // 序号区
@@ -294,7 +335,10 @@ void SongItem::layoutChildren() {
 }
 
 void SongItem::paint(SkCanvas *canvas) {
+  // 合成背景色并渲染
+  hover_bg.setColor(computeBackgroundColor());
   hover_bg.render(canvas);
+
   index_text.render(canvas);
   cover_bg.render(canvas);
   cover_svg.render(canvas);
@@ -302,29 +346,31 @@ void SongItem::paint(SkCanvas *canvas) {
   artist_text.render(canvas);
   duration_text.render(canvas);
 
-  // 悬停时绘制操作按钮
+  // 操作按钮：基于 action_t 控制透明度
   if (!title_text.text().empty()) {
     const float content_w = contentWidth();
     constexpr float btn_cy = kRowHeight * 0.5f;
 
-    // 喜欢按钮（心形）
+    // 喜欢按钮（心形）：liked 时始终可见，否则跟随 action_t
     const float heart_cx = content_w - 56.0f;
     SkPaint heart_paint;
     heart_paint.setAntiAlias(true);
     heart_paint.setStyle(SkPaint::kFill_Style);
     heart_paint.setColor(liked ? kLikedColor : kActionBtnColor);
-    heart_paint.setAlphaf(is_hovering || liked ? 1.0f : 0.0f);
-    canvas->drawPath(MakeHeartPath(heart_cx, btn_cy, 14.0f), heart_paint);
+    heart_paint.setAlphaf(liked ? 1.0f : action_t);
+    canvas->drawPath(path::makeHeartPath(heart_cx, btn_cy, 14.0f), heart_paint);
 
-    // 更多按钮（省略号）
-    const float dots_cx = content_w - 24.0f;
-    SkPaint dots_paint;
-    dots_paint.setAntiAlias(true);
-    dots_paint.setColor(kActionBtnColor);
-    dots_paint.setAlphaf(is_hovering ? 1.0f : 0.0f);
-    canvas->drawCircle(dots_cx - 7.0f, btn_cy, 2.0f, dots_paint);
-    canvas->drawCircle(dots_cx, btn_cy, 2.0f, dots_paint);
-    canvas->drawCircle(dots_cx + 7.0f, btn_cy, 2.0f, dots_paint);
+    // 更多按钮（省略号）：仅 hover 时可见
+    if (action_t > 0.01f) {
+      const float dots_cx = content_w - 24.0f;
+      SkPaint dots_paint;
+      dots_paint.setAntiAlias(true);
+      dots_paint.setColor(kActionBtnColor);
+      dots_paint.setAlphaf(action_t);
+      canvas->drawCircle(dots_cx - 7.0f, btn_cy, 2.0f, dots_paint);
+      canvas->drawCircle(dots_cx, btn_cy, 2.0f, dots_paint);
+      canvas->drawCircle(dots_cx + 7.0f, btn_cy, 2.0f, dots_paint);
+    }
   }
 }
 
