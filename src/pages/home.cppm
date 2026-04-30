@@ -81,20 +81,13 @@ HomePage::HomePage(Widget *parent) :
     yuri::info("hhhh");
   });
 
-  const auto items = new Widget(this);
-  items->setLayout<VBoxLayout<Widget>>();
-
+  const auto items = new ScrollArea(this);
   thread_manager->addTask([items, this] {
-    auto list = qqmusic_api::playlist::get_user_playlists();
+    const auto list = qqmusic_api::playlist::get_user_playlists();
     for (auto &value : list.data.disslist) {
-      yuri::info("---------- name: {} id: {} ------------", value.diss_name, value.tid);
-      auto res = qqmusic_api::playlist::get_user_playlists_detail(value.tid, 0, 5).req_1.data;
-      for (auto &music : res.songlist) {
-        yuri::info("name: {}", music.name);
-      }
-
       if (value.diss_name == "我喜欢") {
         int index = 0;
+        const auto res = qqmusic_api::playlist::get_user_playlists_detail(value.tid, 0, 30).req_1.data;
         for (auto &music : res.songlist) {
           new SongItem(index++, music.title, music.label, "5:21", false, items);
         }
