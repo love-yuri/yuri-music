@@ -8,8 +8,6 @@ import ui;
 import core;
 import skia;
 import components;
-import thread_pool;
-import qq_music_api;
 
 using namespace ui::layout;
 using namespace ui::widgets;
@@ -81,21 +79,6 @@ HomePage::HomePage(Widget *parent) :
     yuri::info("hhhh");
   });
 
-  const auto items = new ScrollArea(this);
-  thread_manager->addTask([items, this] {
-    const auto list = qqmusic_api::playlist::get_user_playlists();
-    for (auto &value : list.data.disslist) {
-      if (value.diss_name == "我喜欢") {
-        int index = 0;
-        const auto res = qqmusic_api::playlist::get_user_playlists_detail(value.tid, 0, 30).req_1.data;
-        for (auto &music : res.songlist) {
-          new SongItem(index++, music.title, music.label, "5:21", false, items);
-        }
-
-        markLayoutDirty();
-      }
-    }
-  });
 }
 
 } // namespace pages
