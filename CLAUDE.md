@@ -10,7 +10,7 @@ python script/build.py
 
 # Configure and build
 mkdir -p build && cd build
-cmake .. -G Ninja
+cmake .. -G Ninja # if you are linux please add -DCMAKE_CXX_COMPILER=clang++
 cmake --build .
 
 # Run tests
