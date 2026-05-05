@@ -63,8 +63,8 @@ MainWindow::MainWindow() : Window(1024, 700) {
 
   page_view = new PageView(splitter_);
 
-  player_bar_ = new components::PlayerBar(this);
-  player_bar_->setVisible(false);
+  player_bar = new components::PlayerBar(this);
+  player_bar->setVisible(false);
 
   setupSidebar();
   setupPages();
@@ -82,8 +82,8 @@ void MainWindow::layoutChildren() {
   splitter_->setGeometry(0, 0, w, main_h);
   splitter_->updateLayout();
 
-  player_bar_->setGeometry(0, main_h, w, bar_h);
-  player_bar_->updateLayout();
+  player_bar->setGeometry(0, main_h, w, bar_h);
+  player_bar->updateLayout();
 }
 
 void MainWindow::setupSidebar() {
@@ -131,8 +131,8 @@ void MainWindow::setupPages() {
 }
 
 void MainWindow::onSongSelected(const std::string &title, const std::string &artist, const std::string &duration) {
-  player_bar_->updateSong(title, artist, duration);
-  player_bar_->show();
+  player_bar->updateSong(title, artist, duration);
+  player_bar->show();
 }
 
 void MainWindow::onMenuClicked(const std::string &id) {
