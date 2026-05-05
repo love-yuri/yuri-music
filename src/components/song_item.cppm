@@ -84,6 +84,8 @@ public:
 
   /** 设置是否选中 */
   void setSelected(bool value);
+  /** 是否选中 */
+  [[nodiscard]] bool isSelected() const { return selected; }
 
   Signal<> doubleClicked; // 双击信号
 
