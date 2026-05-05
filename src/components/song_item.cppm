@@ -238,6 +238,10 @@ void SongItem::onMouseLeftReleased(float x, float y) {
   // 按下效果释放
   startAnimation<&SongItem::setPressT>(press_t, 0.0f, 160.0f, CubicBezier::EaseOut());
 
+  const auto now = profiling::frame_clock.now;
+  const auto elapsed = now - last_click_time;
+  last_click_time = now;
+
   if (isOverHeart(x, y)) {
     liked = !liked;
     return;
@@ -245,10 +249,6 @@ void SongItem::onMouseLeftReleased(float x, float y) {
   if (isOverMore(x, y)) {
     return;
   }
-
-  const auto now = profiling::frame_clock.now;
-  const auto elapsed = now - last_click_time;
-  last_click_time = now;
 
   if (elapsed > 0 && elapsed < kDoubleClickThresholdUs) {
     // 双击：选中当前项并发射信号
