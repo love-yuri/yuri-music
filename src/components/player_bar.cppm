@@ -16,43 +16,31 @@ using namespace ui::animation;
 using namespace ui::algorithm;
 using namespace skia;
 
-// ─── 色彩系统（暗色毛玻璃，对齐设计稿） ───
+// ─── 色彩系统（macOS Music.app 风格） ───
 
-// 背景：近黑半透明
-constexpr SkColor kBarBg = ColorFromARGB(230, 8, 10, 20);
+// 背景：深色半透明
+constexpr SkColor kBarBg = ColorFromARGB(235, 30, 30, 30);
 // 顶部分割线
-constexpr SkColor kBarBorder = ColorFromARGB(15, 255, 255, 255);
-// 强调色：紫罗兰
-constexpr SkColor kAccent = ColorFromARGB(255, 167, 139, 250);
-// 播放按钮背景
-constexpr SkColor kPlayBg = ColorFromARGB(255, 167, 139, 250);
-// 播放按钮悬浮
-constexpr SkColor kPlayHover = ColorFromARGB(255, 180, 160, 252);
-// 播放按钮按下
-constexpr SkColor kPlayPress = ColorFromARGB(255, 150, 120, 240);
-// 播放按钮投影
-constexpr SkColor kPlayShadow = ColorFromARGB(100, 167, 139, 250);
+constexpr SkColor kBarBorder = ColorFromARGB(30, 255, 255, 255);
+// 强调色：Apple Music 红
+constexpr SkColor kAccent = ColorFromARGB(255, 252, 59, 48);
 // 进度轨道
-constexpr SkColor kProgressTrack = ColorFromARGB(20, 255, 255, 255);
+constexpr SkColor kProgressTrack = ColorFromARGB(50, 255, 255, 255);
 // 进度填充
-constexpr SkColor kProgressFill = ColorFromARGB(255, 167, 139, 250);
+constexpr SkColor kProgressFill = ColorFromARGB(255, 255, 255, 255);
 // 主文字
-constexpr SkColor kTextPrimary = ColorFromARGB(242, 255, 255, 255);
+constexpr SkColor kTextPrimary = ColorFromARGB(255, 255, 255, 255);
 // 次文字
-constexpr SkColor kTextSecondary = ColorFromARGB(140, 255, 255, 255);
+constexpr SkColor kTextSecondary = ColorFromARGB(180, 255, 255, 255);
 // 弱文字
-constexpr SkColor kTextMuted = ColorFromARGB(77, 255, 255, 255);
-// 侧按钮悬浮背景
-constexpr SkColor kBtnHoverBg = ColorFromARGB(40, 255, 255, 255);
-// 侧按钮悬浮图标色（用强调色）
-constexpr SkColor kBtnHoverIcon = ColorFromARGB(255, 167, 139, 250);
+constexpr SkColor kTextMuted = ColorFromARGB(90, 255, 255, 255);
 // 封面色块
-constexpr SkColor kCoverGrad1 = ColorFromARGB(255, 99, 102, 241);
-constexpr SkColor kCoverGrad2 = ColorFromARGB(255, 139, 92, 246);
+constexpr SkColor kCoverGrad1 = ColorFromARGB(255, 44, 44, 46);
+constexpr SkColor kCoverGrad2 = ColorFromARGB(255, 44, 44, 46);
 // 音量轨道
-constexpr SkColor kVolTrack = ColorFromARGB(20, 255, 255, 255);
+constexpr SkColor kVolTrack = ColorFromARGB(50, 255, 255, 255);
 // 音量填充
-constexpr SkColor kVolFill = ColorFromARGB(140, 255, 255, 255);
+constexpr SkColor kVolFill = ColorFromARGB(200, 255, 255, 255);
 
 // ─── 布局常量 ───
 
@@ -60,16 +48,16 @@ static constexpr float kBarHeight = 68.0f;
 static constexpr float kPadH = 20.0f;
 static constexpr float kCoverSize = 44.0f;
 static constexpr float kCoverRadius = 8.0f;
-static constexpr float kPlayBtnR = 18.0f;
-static constexpr float kSideBtnR = 16.0f;
-static constexpr float kCtrlGap = 14.0f;
-static constexpr float kVolWidth = 70.0f;
-static constexpr float kVolTrackH = 4.0f;
-static constexpr float kVolDotR = 5.0f;
+static constexpr float kPlayBtnR = 13.0f;
+static constexpr float kSideBtnR = 12.0f;
+static constexpr float kCtrlGap = 20.0f;
+static constexpr float kVolWidth = 80.0f;
+static constexpr float kVolTrackH = 3.0f;
+static constexpr float kVolDotR = 6.0f;
 static constexpr float kVolIconW = 16.0f;
 static constexpr float kTimeW = 36.0f;
 static constexpr float kProgressMaxW = 520.0f;
-static constexpr float kProgressH = 4.0f;
+static constexpr float kProgressH = 3.0f;
 static constexpr float kLeftW = 220.0f;
 static constexpr float kRightW = 180.0f;
 static constexpr float kRowGap = 6.0f;
@@ -77,7 +65,7 @@ static constexpr float kRowGap = 6.0f;
 export namespace components {
 
 /**
- * 播放器底栏 — 暗色毛玻璃风格
+ * 播放器底栏 — macOS Music.app 风格
  *
  * 左：封面(44x44) + 歌曲信息
  * 中：控制按钮行 + 进度条行
@@ -310,14 +298,6 @@ void PlayerBar::paint(SkCanvas *canvas) {
   SkPaint btn;
   btn.setAntiAlias(true);
 
-  // 侧按钮悬浮背景
-  if (btn_hover_t > 0.01f && (hovered_btn == 1 || hovered_btn == 3)) {
-    btn.setColor(kBtnHoverBg);
-    btn.setAlphaf(btn_hover_t);
-    const float hr = kSideBtnR + 2.0f;
-    const float hcx = hovered_btn == 1 ? btn_prev_cx : btn_next_cx;
-    canvas->drawCircle(hcx, btn_cy, hr, btn);
-  }
 
   // 上一曲
   {
@@ -327,47 +307,22 @@ void PlayerBar::paint(SkCanvas *canvas) {
     canvas->scale(s, s);
     canvas->translate(-btn_prev_cx, -btn_cy);
     btn.setStyle(SkPaint::kFill_Style);
-    btn.setColor(hovered_btn == 1 ? kBtnHoverIcon : kTextSecondary);
+    btn.setColor(hovered_btn == 1 ? kTextPrimary : kTextSecondary);
     drawPrevIcon(canvas, btn_prev_cx, btn_cy, btn);
     canvas->restore();
   }
 
-  // 播放按钮
+  // 播放按钮（纯图标，无背景）
   {
     canvas->save();
-    const float scale = 1.0f + play_hover_t * 0.06f - play_press_t * 0.08f;
+    const float press_scale = 1.0f - play_press_t * 0.1f;
     canvas->translate(btn_play_cx, btn_cy);
-    canvas->scale(scale, scale);
+    canvas->scale(press_scale, press_scale);
     canvas->translate(-btn_play_cx, -btn_cy);
 
-    // 外发光
-    if (play_hover_t > 0.01f) {
-      SkPaint glow;
-      glow.setAntiAlias(true);
-      glow.setColor(kPlayShadow);
-      glow.setAlphaf(play_hover_t * 0.6f);
-      canvas->drawCircle(btn_play_cx, btn_cy, kPlayBtnR + 3.0f, glow);
-    }
-
-    // 外环（微妙的边框感）
-    btn.setColor(ColorFromARGB(30, 255, 255, 255));
-    canvas->drawCircle(btn_play_cx, btn_cy, kPlayBtnR + 1.0f, btn);
-
-    // 主体
-    btn.setColor(lerp(kPlayBg, kPlayHover, play_hover_t));
-    btn.setColor(lerp(btn.getColor(), kPlayPress, play_press_t));
-    canvas->drawCircle(btn_play_cx, btn_cy, kPlayBtnR, btn);
-
-    // 内环高光
-    btn.setColor(ColorFromARGB(25, 255, 255, 255));
-    btn.setStyle(SkPaint::kStroke_Style);
-    btn.setStrokeWidth(1.0f);
-    canvas->drawCircle(btn_play_cx, btn_cy, kPlayBtnR - 2.0f, btn);
-    btn.setStyle(SkPaint::kFill_Style);
-
-    // 图标
     btn.setColor(skia_colors::white);
-    drawPlayIcon(canvas, btn_play_cx, btn_cy, 11.0f, btn);
+    btn.setAlphaf(lerp(0.85f, 1.0f, play_hover_t));
+    drawPlayIcon(canvas, btn_play_cx, btn_cy, 14.0f, btn);
     canvas->restore();
   }
 
@@ -378,7 +333,7 @@ void PlayerBar::paint(SkCanvas *canvas) {
     canvas->translate(btn_next_cx, btn_cy);
     canvas->scale(s, s);
     canvas->translate(-btn_next_cx, -btn_cy);
-    btn.setColor(hovered_btn == 3 ? kBtnHoverIcon : kTextSecondary);
+    btn.setColor(hovered_btn == 3 ? kTextPrimary : kTextSecondary);
     drawNextIcon(canvas, btn_next_cx, btn_cy, btn);
     canvas->restore();
   }
@@ -415,10 +370,7 @@ void PlayerBar::drawProgressBar(SkCanvas *canvas, float cx, float cy, float max_
   SkPaint dot;
   dot.setAntiAlias(true);
   dot.setColor(skia_colors::white);
-  canvas->drawCircle(x0 + fill_w, cy, 5.0f, dot);
-  // 投影
-  dot.setColor(ColorFromARGB(40, 0, 0, 0));
-  canvas->drawCircle(x0 + fill_w, cy + 1.0f, 5.5f, dot);
+  canvas->drawCircle(x0 + fill_w, cy, 4.0f, dot);
 }
 
 // ─── 音量条 ───
@@ -509,12 +461,12 @@ void PlayerBar::drawPrevIcon(SkCanvas *c, float cx, float cy, const SkPaint &p) 
   c->drawPath(b.detach(), p);
 }
 
-// 播放图标：简单居中三角
+// 播放图标：居中三角
 void PlayerBar::drawPlayIcon(SkCanvas *c, float cx, float cy, float sz, const SkPaint &p) {
   SkPathBuilder b;
-  b.moveTo(SkPoint::Make(cx + sz * 0.45f, cy));
-  b.lineTo(SkPoint::Make(cx - sz * 0.40f, cy - sz * 0.60f));
-  b.lineTo(SkPoint::Make(cx - sz * 0.40f, cy + sz * 0.60f));
+  b.moveTo(SkPoint::Make(cx + sz * 0.42f, cy));
+  b.lineTo(SkPoint::Make(cx - sz * 0.38f, cy - sz * 0.55f));
+  b.lineTo(SkPoint::Make(cx - sz * 0.38f, cy + sz * 0.55f));
   b.close();
   c->drawPath(b.detach(), p);
 }

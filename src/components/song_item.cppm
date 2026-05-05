@@ -16,47 +16,47 @@ using namespace ui::animation;
 using namespace ui::algorithm;
 using namespace skia;
 
-// --- 颜色常量 ---
+// --- 颜色常量（Apple Music 桌面端风格） ---
 
 // 序号/时长文字颜色
-constexpr SkColor kMutedColor = ColorFromARGB(160, 0, 0, 0);
+constexpr SkColor kMutedColor = ColorFromARGB(128, 0, 0, 0);
 // 歌手文字颜色
-constexpr SkColor kArtistColor = ColorFromARGB(140, 0, 0, 0);
+constexpr SkColor kArtistColor = ColorFromARGB(115, 0, 0, 0);
 // 封面色块颜色
-constexpr SkColor kCoverColor = ColorFromARGB(255, 99, 102, 241);
+constexpr SkColor kCoverColor = ColorFromARGB(255, 229, 229, 234);
 // 悬浮背景色
-constexpr SkColor kHoverBgColor = ColorFromARGB(255, 245, 245, 252);
+constexpr SkColor kHoverBgColor = ColorFromARGB(12, 0, 0, 0);
 // 按下背景色
-constexpr SkColor kPressBgColor = ColorFromARGB(255, 228, 228, 242);
+constexpr SkColor kPressBgColor = ColorFromARGB(22, 0, 0, 0);
 // 播放中背景色
-constexpr SkColor kPlayingBgColor = ColorFromARGB(20, 139, 92, 246);
+constexpr SkColor kPlayingBgColor = ColorFromARGB(18, 252, 59, 48);
 // 播放中序号颜色
-constexpr SkColor kPlayingAccentColor = ColorFromARGB(255, 139, 92, 246);
+constexpr SkColor kPlayingAccentColor = ColorFromARGB(255, 252, 59, 48);
 // 操作按钮颜色
-constexpr SkColor kActionBtnColor = ColorFromARGB(140, 0, 0, 0);
+constexpr SkColor kActionBtnColor = ColorFromARGB(100, 0, 0, 0);
 // 喜欢按钮颜色
-constexpr SkColor kLikedColor = ColorFromARGB(255, 244, 114, 182);
+constexpr SkColor kLikedColor = ColorFromARGB(255, 252, 59, 48);
 // 选中背景色
-constexpr SkColor kSelectedBgColor = ColorFromARGB(255, 235, 235, 240);
+constexpr SkColor kSelectedBgColor = ColorFromARGB(18, 0, 0, 0);
 
 // --- 布局常量 ---
 
 // 封面尺寸
-static constexpr float kCoverSize = 44.0f;
+static constexpr float kCoverSize = 40.0f;
 // 封面圆角
-static constexpr float kCoverRadius = 8.0f;
+static constexpr float kCoverRadius = 6.0f;
 // 行高
-static constexpr float kRowHeight = 60.0f;
+static constexpr float kRowHeight = 52.0f;
 // 左右内边距
-static constexpr float kPadH = 14.0f;
+static constexpr float kPadH = 10.0f;
 // 序号区宽度
-static constexpr float kIndexWidth = 20.0f;
+static constexpr float kIndexWidth = 28.0f;
 // 元素间距
-static constexpr float kGap = 14.0f;
+static constexpr float kGap = 12.0f;
 // 时长区宽度
-static constexpr float kDurationWidth = 40.0f;
+static constexpr float kDurationWidth = 48.0f;
 // 操作按钮区宽度
-static constexpr float kActionWidth = 74.0f;
+static constexpr float kActionWidth = 72.0f;
 // 双击阈值
 static constexpr std::uint64_t kDoubleClickThresholdUs = 400'000; // 400ms
 
@@ -153,7 +153,7 @@ SongItem::SongItem(const int index,
   // 序号
   index_text.setFontSize(12);
   index_text.setColor(is_playing ? kPlayingAccentColor : kMutedColor);
-  index_text.setAlignment(Alignment::Center);
+  index_text.setAlignment(Alignment::CenterRight);
 
   // 封面色块
   cover_bg.setColor(kCoverColor);
@@ -163,7 +163,7 @@ SongItem::SongItem(const int index,
   cover_svg.setAlignment(Alignment::Center);
 
   // 标题
-  title_text.setFontSize(14);
+  title_text.setFontSize(13);
   title_text.setColor(is_playing ? kPlayingAccentColor : skia_colors::black);
   title_text.setAlignment(Alignment::TopLeft);
 
@@ -284,19 +284,19 @@ void SongItem::setSelected(const bool value) {
 }
 
 bool SongItem::isOverHeart(const float x, const float y) const {
-  const float heart_cx = contentWidth() - 56.0f;
+  const float heart_cx = contentWidth() - 52.0f;
   constexpr float btn_cy = kRowHeight * 0.5f;
   const float dx = x - heart_cx;
   const float dy = y - btn_cy;
-  return dx * dx + dy * dy < 18.0f * 18.0f;
+  return dx * dx + dy * dy < 16.0f * 16.0f;
 }
 
 bool SongItem::isOverMore(float x, float y) const {
-  const float dots_cx = contentWidth() - 24.0f;
+  const float dots_cx = contentWidth() - 22.0f;
   constexpr float btn_cy = kRowHeight * 0.5f;
   const float dx = x - dots_cx;
   const float dy = y - btn_cy;
-  return dx * dx + dy * dy < 18.0f * 18.0f;
+  return dx * dx + dy * dy < 16.0f * 16.0f;
 }
 
 void SongItem::layoutChildren() {
@@ -323,12 +323,12 @@ void SongItem::layoutChildren() {
   const float text_w = action_x - kGap - text_x;
 
   // 标题：垂直偏上
-  constexpr float title_y = 14.0f;
-  title_text.update(SkRect::MakeXYWH(text_x, title_y, text_w, 18.0f));
+  constexpr float title_y = 10.0f;
+  title_text.update(SkRect::MakeXYWH(text_x, title_y, text_w, 16.0f));
 
   // 歌手：标题下方
-  constexpr float artist_y = 36.0f;
-  artist_text.update(SkRect::MakeXYWH(text_x, artist_y, text_w, 16.0f));
+  constexpr float artist_y = 28.0f;
+  artist_text.update(SkRect::MakeXYWH(text_x, artist_y, text_w, 14.0f));
 
   // 时长：操作按钮区左侧
   constexpr float duration_w = kDurationWidth;
@@ -354,17 +354,17 @@ void SongItem::paint(SkCanvas *canvas) {
     constexpr float btn_cy = kRowHeight * 0.5f;
 
     // 喜欢按钮（心形）：liked 时始终可见，否则跟随 action_t
-    const float heart_cx = content_w - 56.0f;
+    const float heart_cx = content_w - 52.0f;
     SkPaint heart_paint;
     heart_paint.setAntiAlias(true);
     heart_paint.setStyle(SkPaint::kFill_Style);
     heart_paint.setColor(liked ? kLikedColor : kActionBtnColor);
     heart_paint.setAlphaf(liked ? 1.0f : action_t);
-    canvas->drawPath(path::makeHeartPath(heart_cx, btn_cy, 14.0f), heart_paint);
+    canvas->drawPath(path::makeHeartPath(heart_cx, btn_cy, 12.0f), heart_paint);
 
     // 更多按钮（省略号）：仅 hover 时可见
     if (action_t > 0.01f) {
-      const float dots_cx = content_w - 24.0f;
+      const float dots_cx = content_w - 22.0f;
       SkPaint dots_paint;
       dots_paint.setAntiAlias(true);
       dots_paint.setColor(kActionBtnColor);

@@ -137,7 +137,7 @@ void LibraryPage::checkLoadMore(const float scrollOffset) {
   const auto n = static_cast<int>(items_->children().size());
   if (n == 0) return;
 
-  constexpr float kSongItemHeight = 60.0f;
+  constexpr float kSongItemHeight = 52.0f;
   const int bottom_index = static_cast<int>((scrollOffset + items_->contentHeight()) / kSongItemHeight);
 
   if (n - bottom_index <= 5) {
