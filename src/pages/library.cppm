@@ -29,16 +29,29 @@ private:
   void checkLoadMore(float scrollOffset);
   // 加载更多歌曲
   void loadMore();
+  // 歌曲双击处理
+  void onSongDoubleClicked();
   // 格式化歌曲时长（秒 -> m:ss）
   static std::string formatDuration(int seconds);
   // 拼接歌手名
   static std::string formatSingers(const std::vector<SingerType>& singers);
+
+  // 歌曲信息
+  struct SongInfo {
+    std::string title;
+    std::string artist;
+    std::string duration;
+  };
 
   ScrollArea *items_{};       // 歌曲列表
   std::uint64_t tid_{};       // 当前歌单 ID
   int offset_{0};             // 当前加载偏移
   bool loading_{false};       // 是否正在加载
   bool has_more_{true};       // 是否还有更多数据
+  std::unordered_map<Widget *, SongInfo> song_info_; // 歌曲信息映射
+
+public:
+  Signal<std::string, std::string, std::string> songSelected; // 歌曲选中信号
 };
 
 LibraryPage::LibraryPage(Widget *parent): Widget(parent) {
@@ -66,7 +79,9 @@ LibraryPage::LibraryPage(Widget *parent): Widget(parent) {
         const auto res = qqmusic_api::playlist::get_user_playlists_detail(tid_, 0, 30).req_1.data;
         int index = 0;
         for (auto &music : res.songlist) {
-          new SongItem(index++, music.title, formatSingers(music.singer), formatDuration(music.interval), false, items_);
+          auto *item = new SongItem(index++, music.title, formatSingers(music.singer), formatDuration(music.interval), false, items_);
+          song_info_[item] = {std::string(music.title), formatSingers(music.singer), formatDuration(music.interval)};
+          item->doubleClicked.connect<&LibraryPage::onSongDoubleClicked>(this);
         }
         offset_ += res.songlist.size();
         has_more_ = !res.songlist.empty();
@@ -103,6 +118,18 @@ std::string LibraryPage::formatSingers(const std::vector<SingerType>& singers) {
   return result;
 }
 
+// 歌曲双击处理：查找选中项并发射信号
+void LibraryPage::onSongDoubleClicked() {
+  for (auto *child : items_->children()) {
+    if (auto *item = dynamic_cast<SongItem *>(child); item && item->isSelected()) {
+      if (auto it = song_info_.find(item); it != song_info_.end()) {
+        songSelected.emit(it->second.title, it->second.artist, it->second.duration);
+      }
+      break;
+    }
+  }
+}
+
 // 检查是否需要加载更多歌曲
 void LibraryPage::checkLoadMore(const float scrollOffset) {
   if (loading_ || !has_more_) return;
@@ -132,7 +159,9 @@ void LibraryPage::loadMore() {
 
     int index = current_offset;
     for (auto &music : res.songlist) {
-      new SongItem(index++, music.title, formatSingers(music.singer), formatDuration(music.interval), false, items_);
+      auto *item = new SongItem(index++, music.title, formatSingers(music.singer), formatDuration(music.interval), false, items_);
+      song_info_[item] = {std::string(music.title), formatSingers(music.singer), formatDuration(music.interval)};
+      item->doubleClicked.connect<&LibraryPage::onSongDoubleClicked>(this);
     }
 
     offset_ = current_offset + res.songlist.size();
