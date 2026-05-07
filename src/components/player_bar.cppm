@@ -83,6 +83,9 @@ public:
   void hide();
   void updateSong(std::string_view title, std::string_view artist, std::string_view duration);
 
+  // 是否正在展示（含动画中）
+  [[nodiscard]] bool showing() const noexcept { return showing_; }
+
 protected:
   void onMouseMove(float x, float y) override;
   void onMouseLeave(float x, float y) override;
@@ -167,6 +170,7 @@ void PlayerBar::show() {
   if (showing_) return;
   showing_ = true;
   setVisible(true);
+  markLayoutDirty();
   startAnimation<&PlayerBar::setSlideT>(slide_t, 1.0f, 350.0f, CubicBezier::EaseOut());
   startAnimation<&PlayerBar::setAlphaT>(alpha_, 1.0f, 350.0f, CubicBezier::EaseOut());
 }
@@ -174,8 +178,8 @@ void PlayerBar::show() {
 void PlayerBar::hide() {
   if (!showing_) return;
   showing_ = false;
-  startAnimation<&PlayerBar::setSlideT>(slide_t, 0.0f, 280.0f, CubicBezier::EaseOut());
-  startAnimation<&PlayerBar::setAlphaT>(alpha_, 0.0f, 280.0f, CubicBezier::EaseOut());
+  setVisible(false);
+  markLayoutDirty();
 }
 
 void PlayerBar::updateSong(std::string_view title, std::string_view artist, std::string_view duration) {

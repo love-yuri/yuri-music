@@ -48,10 +48,10 @@ private:
   int offset_{0};             // 当前加载偏移
   bool loading_{false};       // 是否正在加载
   bool has_more_{true};       // 是否还有更多数据
-  std::unordered_map<Widget *, SongInfo> song_info_; // 歌曲信息映射
+  std::unordered_map<Widget *, SongInfo> song_info_{}; // 歌曲信息映射
 
 public:
-  Signal<std::string, std::string, std::string> songSelected; // 歌曲选中信号
+  Signal<std::string, std::string, std::string> songSelected{}; // 歌曲选中信号
 };
 
 LibraryPage::LibraryPage(Widget *parent): Widget(parent) {

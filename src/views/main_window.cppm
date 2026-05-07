@@ -76,14 +76,16 @@ MainWindow::MainWindow() : Window(1024, 700) {
 void MainWindow::layoutChildren() {
   const float w = contentWidth();
   const float h = contentHeight();
-  constexpr float bar_h = kPlayerBarHeight;
+  const float bar_h = player_bar->showing() ? kPlayerBarHeight : 0.0f;
   const float main_h = h - bar_h;
 
   splitter_->setGeometry(0, 0, w, main_h);
   splitter_->updateLayout();
 
-  player_bar->setGeometry(0, main_h, w, bar_h);
-  player_bar->updateLayout();
+  if (player_bar->showing()) {
+    player_bar->setGeometry(0, main_h, w, bar_h);
+    player_bar->updateLayout();
+  }
 }
 
 void MainWindow::setupSidebar() {
