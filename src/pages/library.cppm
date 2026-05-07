@@ -30,7 +30,7 @@ private:
   // 加载更多歌曲
   void loadMore();
   // 歌曲双击处理
-  void onSongDoubleClicked();
+  void onSongDoubleClicked(SongItem* item);
   // 格式化歌曲时长（秒 -> m:ss）
   static std::string formatDuration(int seconds);
   // 拼接歌手名
@@ -38,11 +38,12 @@ private:
 
   // 歌曲信息
   struct SongInfo {
-    std::string title;
-    std::string artist;
-    std::string duration;
+    std::string title{};
+    std::string artist{};
+    std::string duration{};
   };
 
+  SongItem* selected_item{};  // 被选中的item
   ScrollArea *items_{};       // 歌曲列表
   std::uint64_t tid_{};       // 当前歌单 ID
   int offset_{0};             // 当前加载偏移
@@ -119,15 +120,12 @@ std::string LibraryPage::formatSingers(const std::vector<SingerType>& singers) {
 }
 
 // 歌曲双击处理：查找选中项并发射信号
-void LibraryPage::onSongDoubleClicked() {
-  for (auto *child : items_->children()) {
-    if (auto *item = dynamic_cast<SongItem *>(child); item && item->isSelected()) {
-      if (auto it = song_info_.find(item); it != song_info_.end()) {
-        songSelected.emit(it->second.title, it->second.artist, it->second.duration);
-      }
-      break;
-    }
+void LibraryPage::onSongDoubleClicked(SongItem* item) {
+  item->setSelected(true);
+  if (selected_item != nullptr) {
+    selected_item->setSelected(false);
   }
+  selected_item = item;
 }
 
 // 检查是否需要加载更多歌曲

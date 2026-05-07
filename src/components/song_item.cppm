@@ -87,7 +87,7 @@ public:
   /** 是否选中 */
   [[nodiscard]] bool isSelected() const { return selected; }
 
-  Signal<> doubleClicked; // 双击信号
+  Signal<SongItem*> doubleClicked; // 双击信号
 
 protected:
   /** 鼠标悬浮进入 */
@@ -108,12 +108,6 @@ private:
   [[nodiscard]] bool isOverHeart(float x, float y) const;
   /** 判断鼠标是否悬浮在更多按钮上 */
   [[nodiscard]] bool isOverMore(float x, float y) const;
-
-  // --- 动画 setter（供 startAnimation 调用） ---
-  void setHoverT(const float t) noexcept { hover_t = t; }
-  void setPressT(const float t) noexcept { press_t = t; }
-  void setSelectT(const float t) noexcept { select_t = t; }
-  void setActionT(const float t) noexcept { action_t = t; }
 
   // --- 渲染节点 ---
   RenderText index_text;             // 序号
@@ -207,9 +201,9 @@ void SongItem::onMouseEnter(float, float) {
   is_pressed = false;
   is_hovering = true;
   // 悬浮背景渐入
-  startAnimation<&SongItem::setHoverT>(hover_t, 1.0f, 200.0f, CubicBezier::EaseOut());
+  startAnimation(hover_t, 1.0f, 200.0f, &hover_t, CubicBezier::EaseOut());
   // 操作按钮淡入
-  startAnimation<&SongItem::setActionT>(action_t, 1.0f, 200.0f, CubicBezier::EaseOut());
+  startAnimation(action_t, 1.0f, 200.0f, &action_t, CubicBezier::EaseOut());
 }
 
 void SongItem::onMouseLeave(float, float) {
@@ -217,26 +211,26 @@ void SongItem::onMouseLeave(float, float) {
   is_hovering = false;
   window()->setCursor(glfw::CursorType::Arrow);
   // 悬浮背景渐出（比渐入稍慢，体感更柔和）
-  startAnimation<&SongItem::setHoverT>(hover_t, 0.0f, 280.0f, CubicBezier::EaseOut());
+  startAnimation(hover_t, 0.0f, 280.0f, &hover_t, CubicBezier::EaseOut());
   // 按下效果归零
   if (press_t > 0.0f) {
-    startAnimation<&SongItem::setPressT>(press_t, 0.0f, 150.0f, CubicBezier::EaseOut());
+    startAnimation(press_t, 0.0f, 150.0f, &press_t, CubicBezier::EaseOut());
   }
   // 操作按钮淡出
-  startAnimation<&SongItem::setActionT>(action_t, 0.0f, 200.0f, CubicBezier::EaseOut());
+  startAnimation(action_t, 0.0f, 200.0f, &action_t, CubicBezier::EaseOut());
 }
 
 void SongItem::onMouseLeftPressed(float, float) {
   is_pressed = true;
   // 按下效果快速响应
-  startAnimation<&SongItem::setPressT>(press_t, 1.0f, 80.0f, CubicBezier::EaseOut());
+  startAnimation(press_t, 1.0f, 80.0f, &press_t, CubicBezier::EaseOut());
 }
 
 void SongItem::onMouseLeftReleased(float x, float y) {
   is_pressed = false;
 
   // 按下效果释放
-  startAnimation<&SongItem::setPressT>(press_t, 0.0f, 160.0f, CubicBezier::EaseOut());
+  startAnimation(press_t, 0.0f, 160.0f, &press_t, CubicBezier::EaseOut());
 
   const auto now = profiling::frame_clock.now;
   const auto elapsed = now - last_click_time;
@@ -254,18 +248,8 @@ void SongItem::onMouseLeftReleased(float x, float y) {
     // 双击：选中当前项并发射信号
     last_click_time = 0;
     if (!selected) {
-      setSelected(true);
-      if (parent_) {
-        for (auto *sibling : parent_->children()) {
-          if (sibling != this) {
-            if (auto *other = dynamic_cast<SongItem *>(sibling)) {
-              other->setSelected(false);
-            }
-          }
-        }
-      }
+      doubleClicked.emit(this);
     }
-    doubleClicked.emit();
   }
 }
 
@@ -280,7 +264,7 @@ void SongItem::onMouseMove(float x, float y) {
 void SongItem::setSelected(const bool value) {
   if (selected == value) return;
   selected = value;
-  startAnimation<&SongItem::setSelectT>(select_t, value ? 1.0f : 0.0f, 250.0f, CubicBezier::EaseOut());
+  startAnimation(select_t, value ? 1.0f : 0.0f, 250.0f, &select_t, CubicBezier::EaseOut());
 }
 
 bool SongItem::isOverHeart(const float x, const float y) const {
