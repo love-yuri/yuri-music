@@ -48,6 +48,10 @@ static constexpr float kGap = 12.0f;
 static constexpr float kDurationWidth = 48.0f;
 // 操作按钮区宽度
 static constexpr float kActionWidth = 72.0f;
+// 操作区距离滚动条的安全间距
+static constexpr float kActionRightInset = 32.0f;
+// 行 hover 背景右侧留白，避免贴到滚动条
+static constexpr float kHoverRightInset = 18.0f;
 // 双击阈值
 static constexpr std::uint64_t kDoubleClickThresholdUs = 400'000; // 400ms
 
@@ -283,7 +287,7 @@ void SongItem::setSelected(const bool value) {
 }
 
 bool SongItem::isOverHeart(const float x, const float y) const {
-  const float heart_cx = contentWidth() - 52.0f;
+  const float heart_cx = contentWidth() - kActionRightInset - 52.0f;
   constexpr float btn_cy = kRowHeight * 0.5f;
   const float dx = x - heart_cx;
   const float dy = y - btn_cy;
@@ -291,7 +295,7 @@ bool SongItem::isOverHeart(const float x, const float y) const {
 }
 
 bool SongItem::isOverMore(float x, float y) const {
-  const float dots_cx = contentWidth() - 22.0f;
+  const float dots_cx = contentWidth() - kActionRightInset - 22.0f;
   constexpr float btn_cy = kRowHeight * 0.5f;
   const float dx = x - dots_cx;
   const float dy = y - btn_cy;
@@ -302,7 +306,7 @@ void SongItem::layoutChildren() {
   const auto rect = contentRect();
 
   // 行背景
-  hover_bg.update(borderRect());
+  hover_bg.update(SkRect::MakeXYWH(0.0f, 0.0f, std::max(0.0f, rect.width() - kHoverRightInset), rect.height()));
 
   // 序号区
   index_text.update(SkRect::MakeXYWH(kPadH, 0, kIndexWidth, rect.height()));
@@ -315,7 +319,7 @@ void SongItem::layoutChildren() {
   cover_svg.update(cover_rect);
 
   // 操作按钮区
-  const float action_x = rect.width() - kActionWidth;
+  const float action_x = rect.width() - kActionRightInset - kActionWidth;
 
   // 文字区：封面右边间隔 kGap
   constexpr float text_x = cover_x + kCoverSize + kGap;
@@ -383,7 +387,7 @@ void SongItem::paint(SkCanvas *canvas) {
     constexpr float btn_cy = kRowHeight * 0.5f;
 
     // 喜欢按钮（心形）：liked 时始终可见，否则跟随 action_t
-    const float heart_cx = content_w - 52.0f;
+    const float heart_cx = content_w - kActionRightInset - 52.0f;
     SkPaint heart_paint;
     heart_paint.setAntiAlias(true);
     heart_paint.setStyle(SkPaint::kFill_Style);
@@ -399,7 +403,7 @@ void SongItem::paint(SkCanvas *canvas) {
 
     // 更多按钮（省略号）：仅 hover 时可见
     if (action_t > 0.01f) {
-      const float dots_cx = content_w - 22.0f;
+      const float dots_cx = content_w - kActionRightInset - 22.0f;
       SkPaint dots_paint;
       dots_paint.setAntiAlias(true);
       dots_paint.setColor(kActionBtnColor);

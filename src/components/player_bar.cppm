@@ -16,26 +16,29 @@ using namespace ui::animation;
 using namespace ui::algorithm;
 using namespace skia;
 
-constexpr SkColor kBarBg = ColorFromARGB(182, 18, 24, 34);
-constexpr SkColor kBarBorder = ColorFromARGB(78, 255, 255, 255);
-constexpr SkColor kAccent = ColorFromARGB(255, 255, 76, 119);
-constexpr SkColor kProgressTrack = ColorFromARGB(52, 255, 255, 255);
-constexpr SkColor kProgressFill = ColorFromARGB(238, 255, 255, 255);
-constexpr SkColor kTextPrimary = ColorFromARGB(255, 255, 255, 255);
-constexpr SkColor kTextSecondary = ColorFromARGB(196, 255, 255, 255);
-constexpr SkColor kTextMuted = ColorFromARGB(116, 255, 255, 255);
-constexpr SkColor kCoverGrad1 = ColorFromARGB(255, 255, 76, 119);
-constexpr SkColor kCoverGrad2 = ColorFromARGB(255, 42, 140, 233);
-constexpr SkColor kVolTrack = ColorFromARGB(50, 255, 255, 255);
-constexpr SkColor kVolFill = ColorFromARGB(210, 255, 255, 255);
+constexpr SkColor kBarBg = ColorFromARGB(186, 255, 255, 255);
+constexpr SkColor kBarBorder = ColorFromARGB(126, 255, 255, 255);
+constexpr SkColor kBarTopLine = ColorFromARGB(52, 42, 52, 68);
+constexpr SkColor kAccent = ColorFromARGB(255, 218, 52, 92);
+constexpr SkColor kProgressTrack = ColorFromARGB(54, 54, 65, 82);
+constexpr SkColor kProgressFill = ColorFromARGB(236, 218, 52, 92);
+constexpr SkColor kProgressThumb = ColorFromARGB(255, 218, 52, 92);
+constexpr SkColor kTextPrimary = ColorFromARGB(255, 20, 26, 36);
+constexpr SkColor kTextSecondary = ColorFromARGB(176, 56, 68, 86);
+constexpr SkColor kTextMuted = ColorFromARGB(122, 54, 65, 82);
+constexpr SkColor kPlayerCoverColor = ColorFromARGB(255, 255, 76, 119);
+constexpr SkColor kVolTrack = ColorFromARGB(50, 54, 65, 82);
+constexpr SkColor kVolFill = ColorFromARGB(188, 54, 65, 82);
+constexpr SkColor kVolThumb = ColorFromARGB(255, 82, 94, 112);
 
 // ─── 布局常量 ───
 
 static constexpr float kBarHeight = 78.0f;
-static constexpr float kPadH = 28.0f;
+static constexpr float kPadH = 30.0f;
 static constexpr float kCoverSize = 44.0f;
 static constexpr float kCoverRadius = 12.0f;
 static constexpr float kPlayBtnR = 13.0f;
+static constexpr float kPlayBtnBgR = kPlayBtnR + 7.0f;
 static constexpr float kSideBtnR = 12.0f;
 static constexpr float kCtrlGap = 20.0f;
 static constexpr float kVolWidth = 80.0f;
@@ -44,6 +47,7 @@ static constexpr float kVolDotR = 6.0f;
 static constexpr float kVolIconW = 16.0f;
 static constexpr float kTimeW = 36.0f;
 static constexpr float kProgressMaxW = 520.0f;
+static constexpr float kProgressMinW = 160.0f;
 static constexpr float kProgressH = 3.0f;
 static constexpr float kLeftW = 220.0f;
 static constexpr float kRightW = 180.0f;
@@ -120,6 +124,9 @@ private:
   float btn_play_cx = 0.0f;            // 播放 X
   float btn_next_cx = 0.0f;            // 下一首 X
   float btn_cy = 0.0f;                 // 按钮 Y
+  float progress_cx = 0.0f;            // 进度条中心 X
+  float progress_cy = 0.0f;            // 进度条中心 Y
+  float progress_w = kProgressMaxW;    // 进度条宽度
 
   int hovered_btn = 0;                 // 当前悬浮按钮
   bool showing_ = false;               // 是否显示
@@ -128,7 +135,7 @@ private:
 PlayerBar::PlayerBar(Widget *parent) : Widget(parent), cover_svg("resources/svg/play.svg") {
   bg_.setColor(kBarBg);
 
-  cover_bg.setColor(kCoverGrad1);
+  cover_bg.setColor(kPlayerCoverColor);
   cover_bg.radius = &cover_radius;
   cover_svg.setAlignment(Alignment::Center);
 
@@ -196,11 +203,11 @@ void PlayerBar::layoutChildren() {
 
   // ─── 中列：控制按钮行 + 进度条行 ───
   const float center_x = kLeftW;
-  const float center_w = w - kLeftW - kRightW;
+  const float center_w = std::max(0.0f, w - kLeftW - kRightW);
   const float ctrl_cx = center_x + center_w * 0.5f;
 
   // 按钮行（上半部分）
-  const float btn_row_h = kPlayBtnR * 2.0f;
+  const float btn_row_h = kPlayBtnBgR * 2.0f;
   const float prog_row_h = kProgressH + 10.0f;
   const float total_h = btn_row_h + kRowGap + prog_row_h;
   const float block_y = (h - total_h) * 0.5f;
@@ -211,13 +218,14 @@ void PlayerBar::layoutChildren() {
   btn_next_cx = ctrl_cx + (kPlayBtnR + kSideBtnR + kCtrlGap);
 
   // 进度条行（下半部分）
-  const float prog_cy = block_y + btn_row_h + kRowGap + prog_row_h * 0.5f;
-  // 进度条中心由 paint 中的 drawProgressBar 使用
+  progress_cx = ctrl_cx;
+  progress_cy = block_y + btn_row_h + kRowGap + prog_row_h * 0.5f;
+  progress_w = std::clamp(center_w - kTimeW * 2.0f - 32.0f, kProgressMinW, kProgressMaxW);
 
   // 时长文字
-  constexpr float prog_half = kProgressMaxW * 0.5f;
-  time_left.update(SkRect::MakeXYWH(ctrl_cx - prog_half - kTimeW - 8.0f, prog_cy - 7.0f, kTimeW, 14.0f));
-  time_right.update(SkRect::MakeXYWH(ctrl_cx + prog_half + 8.0f, prog_cy - 7.0f, kTimeW, 14.0f));
+  const float prog_half = progress_w * 0.5f;
+  time_left.update(SkRect::MakeXYWH(progress_cx - prog_half - kTimeW - 8.0f, progress_cy - 7.0f, kTimeW, 14.0f));
+  time_right.update(SkRect::MakeXYWH(progress_cx + prog_half + 8.0f, progress_cy - 7.0f, kTimeW, 14.0f));
 
   // ─── 右列：音量 ───
   // 音量在 paint 中直接绘制
@@ -246,22 +254,27 @@ void PlayerBar::render(SkCanvas *canvas) {
 void PlayerBar::paint(SkCanvas *canvas) {
   const float w = width_;
   const float h = height_;
-  const auto panel = SkRect::MakeXYWH(12.0f, 8.0f, w - 24.0f, h - 14.0f);
-  constexpr float panel_r = 14.0f;
+  const auto panel = SkRect::MakeXYWH(14.0f, 7.0f, w - 28.0f, h - 13.0f);
+  constexpr float panel_r = 12.0f;
 
   // ─── 背景 ───
   {
-    constexpr float sigma = 15.0f;
-    auto shadow_rect = panel.makeOffset(0, 7.0f).makeInset(4.0f, 4.0f);
+    constexpr float sigma = 12.0f;
+    auto shadow_rect = panel.makeOffset(0, 7.0f).makeInset(7.0f, 7.0f);
     auto layer_bounds = shadow_rect.makeOutset(sigma * 3.0f, sigma * 3.0f);
     SkPaint shadow_layer;
     shadow_layer.setImageFilter(SkImageFilters::Blur(sigma, sigma, nullptr));
     SkPaint shadow;
     shadow.setAntiAlias(true);
-    shadow.setColor(ColorFromARGB(54, 10, 16, 26));
+    shadow.setColor(ColorFromARGB(24, 25, 36, 52));
     canvas->saveLayer(&layer_bounds, &shadow_layer);
     canvas->drawRoundRect(shadow_rect, panel_r, panel_r, shadow);
     canvas->restore();
+
+    SkPaint topLine;
+    topLine.setAntiAlias(true);
+    topLine.setColor(kBarTopLine);
+    canvas->drawRect(SkRect::MakeXYWH(0.0f, 0.0f, w, 1.0f), topLine);
 
     SkPaint glass;
     glass.setAntiAlias(true);
@@ -270,7 +283,7 @@ void PlayerBar::paint(SkCanvas *canvas) {
 
     SkPaint glow;
     glow.setAntiAlias(true);
-    glow.setColor(ColorFromARGB(42, 255, 255, 255));
+    glow.setColor(ColorFromARGB(50, 255, 255, 255));
     canvas->drawRoundRect(SkRect::MakeXYWH(panel.fLeft + 1.0f, panel.fTop + 1.0f, panel.width() - 2.0f, 24.0f),
                           panel_r - 2.0f, panel_r - 2.0f, glow);
   }
@@ -291,7 +304,7 @@ void PlayerBar::paint(SkCanvas *canvas) {
     coverShadowLayer.setImageFilter(SkImageFilters::Blur(6.0f, 6.0f, nullptr));
     SkPaint coverShadow;
     coverShadow.setAntiAlias(true);
-    coverShadow.setColor(ColorFromARGB(42, 0, 0, 0));
+    coverShadow.setColor(ColorFromARGB(34, 25, 36, 52));
     const float sx = kPadH;
     const float sy = (h - kCoverSize) * 0.5f + 4.0f;
     auto cover_shadow_rect = SkRect::MakeXYWH(sx + 2.0f, sy, kCoverSize - 4.0f, kCoverSize);
@@ -338,7 +351,7 @@ void PlayerBar::paint(SkCanvas *canvas) {
     canvas->scale(s, s);
     canvas->translate(-btn_prev_cx, -btn_cy);
     btn.setStyle(SkPaint::kFill_Style);
-    btn.setColor(hovered_btn == 1 ? kTextPrimary : kTextSecondary);
+    btn.setColor(hovered_btn == 1 ? kAccent : kTextSecondary);
     drawPrevIcon(canvas, btn_prev_cx, btn_cy, btn);
     canvas->restore();
   }
@@ -353,11 +366,11 @@ void PlayerBar::paint(SkCanvas *canvas) {
 
     SkPaint playBg;
     playBg.setAntiAlias(true);
-    playBg.setColor(ColorFromARGB(static_cast<U8CPU>(34.0f + play_hover_t * 44.0f), 255, 255, 255));
-    canvas->drawCircle(btn_play_cx, btn_cy, kPlayBtnR + 7.0f + play_hover_t * 1.5f, playBg);
+    playBg.setColor(lerp(kAccent, ColorFromARGB(255, 236, 64, 106), play_hover_t));
+    canvas->drawCircle(btn_play_cx, btn_cy, kPlayBtnBgR + play_hover_t * 1.5f, playBg);
 
     btn.setColor(skia_colors::white);
-    btn.setAlphaf(lerp(0.85f, 1.0f, play_hover_t));
+    btn.setAlphaf(lerp(0.92f, 1.0f, play_hover_t));
     drawPlayIcon(canvas, btn_play_cx, btn_cy, 14.0f, btn);
     canvas->restore();
   }
@@ -369,14 +382,13 @@ void PlayerBar::paint(SkCanvas *canvas) {
     canvas->translate(btn_next_cx, btn_cy);
     canvas->scale(s, s);
     canvas->translate(-btn_next_cx, -btn_cy);
-    btn.setColor(hovered_btn == 3 ? kTextPrimary : kTextSecondary);
+    btn.setColor(hovered_btn == 3 ? kAccent : kTextSecondary);
     drawNextIcon(canvas, btn_next_cx, btn_cy, btn);
     canvas->restore();
   }
 
   // ─── 进度条 ───
-  const float prog_cy = btn_cy + kPlayBtnR + kRowGap + kProgressH * 0.5f;
-  drawProgressBar(canvas, w * 0.5f, prog_cy, kProgressMaxW);
+  drawProgressBar(canvas, progress_cx, progress_cy, progress_w);
 
   // ─── 右侧：音量 ───
   const float vol_x = w - kPadH - kVolWidth;
@@ -405,7 +417,7 @@ void PlayerBar::drawProgressBar(SkCanvas *canvas, float cx, float cy, float max_
   // 圆点滑块
   SkPaint dot;
   dot.setAntiAlias(true);
-  dot.setColor(skia_colors::white);
+  dot.setColor(kProgressThumb);
   canvas->drawCircle(x0 + fill_w, cy, 4.0f, dot);
 }
 
@@ -427,7 +439,7 @@ void PlayerBar::drawVolumeBar(SkCanvas *canvas, float x, float cy, float w) {
   // 圆点
   SkPaint dot;
   dot.setAntiAlias(true);
-  dot.setColor(skia_colors::white);
+  dot.setColor(kVolThumb);
   canvas->drawCircle(x + fill_w, cy, kVolDotR, dot);
 }
 
