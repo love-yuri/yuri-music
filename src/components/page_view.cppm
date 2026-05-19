@@ -76,11 +76,11 @@ private:
   float anim_progress_ = 1.f;
 
   // 新页面入场参数: translateY 从 +offset 到 0
-  static constexpr float kSlideOffset = 200.f;
+  static constexpr float kSlideOffset = 38.f;
   // 新页面入场参数: scale 从 kScaleFrom 到 1.0
-  static constexpr float kScaleFrom = 0.96f;
+  static constexpr float kScaleFrom = 0.985f;
   // 动画总时长 (ms)
-  static constexpr float kAnimDuration = 420.f;
+  static constexpr float kAnimDuration = 360.f;
 };
 
 void PageView::addPage(const std::string_view id, Widget *page) {
@@ -145,9 +145,9 @@ void PageView::render(SkCanvas *canvas) {
 
     if (animating && child == cur_widget) {
       const float t = easeOutQuart(anim_progress_);
-      // 新页面: opacity 0 → 1
-      canvas->saveLayerAlphaf(nullptr, t * 255.f);
-      // 新页面: translateY +20px → 0
+      // 新页面: opacity 0 -> 1
+      canvas->saveLayerAlphaf(nullptr, t);
+      // 新页面: translateY +offset -> 0
       canvas->translate(0, (1.f - t) * kSlideOffset);
       // 新页面: scale 0.96 → 1.0 (以中心为锚点)
       const float scale = kScaleFrom + (1.f - kScaleFrom) * t;

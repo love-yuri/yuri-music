@@ -16,38 +16,25 @@ using namespace ui::animation;
 using namespace ui::algorithm;
 using namespace skia;
 
-// ─── 色彩系统（macOS Music.app 风格） ───
-
-// 背景：深色半透明
-constexpr SkColor kBarBg = ColorFromARGB(235, 30, 30, 30);
-// 顶部分割线
-constexpr SkColor kBarBorder = ColorFromARGB(30, 255, 255, 255);
-// 强调色：Apple Music 红
-constexpr SkColor kAccent = ColorFromARGB(255, 252, 59, 48);
-// 进度轨道
-constexpr SkColor kProgressTrack = ColorFromARGB(50, 255, 255, 255);
-// 进度填充
-constexpr SkColor kProgressFill = ColorFromARGB(255, 255, 255, 255);
-// 主文字
+constexpr SkColor kBarBg = ColorFromARGB(182, 18, 24, 34);
+constexpr SkColor kBarBorder = ColorFromARGB(78, 255, 255, 255);
+constexpr SkColor kAccent = ColorFromARGB(255, 255, 76, 119);
+constexpr SkColor kProgressTrack = ColorFromARGB(52, 255, 255, 255);
+constexpr SkColor kProgressFill = ColorFromARGB(238, 255, 255, 255);
 constexpr SkColor kTextPrimary = ColorFromARGB(255, 255, 255, 255);
-// 次文字
-constexpr SkColor kTextSecondary = ColorFromARGB(180, 255, 255, 255);
-// 弱文字
-constexpr SkColor kTextMuted = ColorFromARGB(90, 255, 255, 255);
-// 封面色块
-constexpr SkColor kCoverGrad1 = ColorFromARGB(255, 44, 44, 46);
-constexpr SkColor kCoverGrad2 = ColorFromARGB(255, 44, 44, 46);
-// 音量轨道
+constexpr SkColor kTextSecondary = ColorFromARGB(196, 255, 255, 255);
+constexpr SkColor kTextMuted = ColorFromARGB(116, 255, 255, 255);
+constexpr SkColor kCoverGrad1 = ColorFromARGB(255, 255, 76, 119);
+constexpr SkColor kCoverGrad2 = ColorFromARGB(255, 42, 140, 233);
 constexpr SkColor kVolTrack = ColorFromARGB(50, 255, 255, 255);
-// 音量填充
-constexpr SkColor kVolFill = ColorFromARGB(200, 255, 255, 255);
+constexpr SkColor kVolFill = ColorFromARGB(210, 255, 255, 255);
 
 // ─── 布局常量 ───
 
-static constexpr float kBarHeight = 68.0f;
-static constexpr float kPadH = 20.0f;
+static constexpr float kBarHeight = 78.0f;
+static constexpr float kPadH = 28.0f;
 static constexpr float kCoverSize = 44.0f;
-static constexpr float kCoverRadius = 8.0f;
+static constexpr float kCoverRadius = 12.0f;
 static constexpr float kPlayBtnR = 13.0f;
 static constexpr float kSideBtnR = 12.0f;
 static constexpr float kCtrlGap = 20.0f;
@@ -259,26 +246,66 @@ void PlayerBar::render(SkCanvas *canvas) {
 void PlayerBar::paint(SkCanvas *canvas) {
   const float w = width_;
   const float h = height_;
+  const auto panel = SkRect::MakeXYWH(12.0f, 8.0f, w - 24.0f, h - 14.0f);
+  constexpr float panel_r = 14.0f;
 
   // ─── 背景 ───
-  bg_.render(canvas);
+  {
+    constexpr float sigma = 15.0f;
+    auto shadow_rect = panel.makeOffset(0, 7.0f).makeInset(4.0f, 4.0f);
+    auto layer_bounds = shadow_rect.makeOutset(sigma * 3.0f, sigma * 3.0f);
+    SkPaint shadow_layer;
+    shadow_layer.setImageFilter(SkImageFilters::Blur(sigma, sigma, nullptr));
+    SkPaint shadow;
+    shadow.setAntiAlias(true);
+    shadow.setColor(ColorFromARGB(54, 10, 16, 26));
+    canvas->saveLayer(&layer_bounds, &shadow_layer);
+    canvas->drawRoundRect(shadow_rect, panel_r, panel_r, shadow);
+    canvas->restore();
+
+    SkPaint glass;
+    glass.setAntiAlias(true);
+    glass.setColor(kBarBg);
+    canvas->drawRoundRect(panel, panel_r, panel_r, glass);
+
+    SkPaint glow;
+    glow.setAntiAlias(true);
+    glow.setColor(ColorFromARGB(42, 255, 255, 255));
+    canvas->drawRoundRect(SkRect::MakeXYWH(panel.fLeft + 1.0f, panel.fTop + 1.0f, panel.width() - 2.0f, 24.0f),
+                          panel_r - 2.0f, panel_r - 2.0f, glow);
+  }
 
   // ─── 顶部分割线 ───
   {
     SkPaint border;
     border.setAntiAlias(true);
+    border.setStyle(SkPaint::kStroke_Style);
+    border.setStrokeWidth(1.0f);
     border.setColor(kBarBorder);
-    canvas->drawRect(SkRect::MakeXYWH(0, 0, w, 1.0f), border);
+    canvas->drawRoundRect(panel.makeInset(0.5f, 0.5f), panel_r, panel_r, border);
   }
 
   // ─── 封面 ───
   {
+    SkPaint coverShadowLayer;
+    coverShadowLayer.setImageFilter(SkImageFilters::Blur(6.0f, 6.0f, nullptr));
+    SkPaint coverShadow;
+    coverShadow.setAntiAlias(true);
+    coverShadow.setColor(ColorFromARGB(42, 0, 0, 0));
+    const float sx = kPadH;
+    const float sy = (h - kCoverSize) * 0.5f + 4.0f;
+    auto cover_shadow_rect = SkRect::MakeXYWH(sx + 2.0f, sy, kCoverSize - 4.0f, kCoverSize);
+    auto cover_bounds = cover_shadow_rect.makeOutset(18.0f, 18.0f);
+    canvas->saveLayer(&cover_bounds, &coverShadowLayer);
+    canvas->drawRoundRect(cover_shadow_rect, kCoverRadius, kCoverRadius, coverShadow);
+    canvas->restore();
+
     cover_bg.render(canvas);
     cover_svg.render(canvas);
     // 高光层
     SkPaint highlight;
     highlight.setAntiAlias(true);
-    highlight.setColor(ColorFromARGB(25, 255, 255, 255));
+    highlight.setColor(ColorFromARGB(44, 255, 255, 255));
     const float hx = kPadH;
     const float hy = (h - kCoverSize) * 0.5f;
     canvas->drawRoundRect(
@@ -316,13 +343,18 @@ void PlayerBar::paint(SkCanvas *canvas) {
     canvas->restore();
   }
 
-  // 播放按钮（纯图标，无背景）
+  // 播放按钮
   {
     canvas->save();
     const float press_scale = 1.0f - play_press_t * 0.1f;
     canvas->translate(btn_play_cx, btn_cy);
     canvas->scale(press_scale, press_scale);
     canvas->translate(-btn_play_cx, -btn_cy);
+
+    SkPaint playBg;
+    playBg.setAntiAlias(true);
+    playBg.setColor(ColorFromARGB(static_cast<U8CPU>(34.0f + play_hover_t * 44.0f), 255, 255, 255));
+    canvas->drawCircle(btn_play_cx, btn_cy, kPlayBtnR + 7.0f + play_hover_t * 1.5f, playBg);
 
     btn.setColor(skia_colors::white);
     btn.setAlphaf(lerp(0.85f, 1.0f, play_hover_t));

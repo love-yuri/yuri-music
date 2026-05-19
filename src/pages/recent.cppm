@@ -17,29 +17,33 @@ export namespace pages {
 class RecentPage : public Widget {
 
 public:
-  explicit RecentPage(Widget* parent = nullptr);
+  // 创建最近播放页面
+  explicit RecentPage(Widget *parent = nullptr);
 
+  // 更新标题布局
   void layoutChildren() override;
-  void paint(SkCanvas* canvas) override;
+  // 绘制页面背景和标题
+  void paint(SkCanvas *canvas) override;
 
 private:
-  RenderBackground render_bg;         // background节点
   RenderText render_text{"最近播放"}; // 字体节点
 };
 
-RecentPage::RecentPage(Widget *parent): Widget(parent) {
+RecentPage::RecentPage(Widget *parent) : Widget(parent) {
   render_text.setAlignment(Alignment::Center);
   render_text.setColor(skia_colors::black);
   render_text.setFontSize(24);
 }
 
 void RecentPage::layoutChildren() {
-  render_bg.update(borderRect());
   render_text.update(contentRect());
 }
 
 void RecentPage::paint(SkCanvas *canvas) {
-  render_bg.render(canvas);
+  SkPaint panel;
+  panel.setAntiAlias(true);
+  panel.setColor(ColorFromARGB(104, 255, 255, 255));
+  canvas->drawRect(borderRect(), panel);
   render_text.render(canvas);
 }
 

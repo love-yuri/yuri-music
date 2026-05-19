@@ -12,10 +12,8 @@ using namespace ui::layout;
 using namespace ui::widgets;
 using namespace skia;
 
-// 灰色文字
-constexpr SkColor kTextColor = ColorFromARGB(255, 117, 117, 117);
-// 紫色强调色
-constexpr SkColor kAccentColor = ColorFromARGB(255, 139, 92, 246);
+constexpr SkColor kTextColor = ColorFromARGB(255, 28, 36, 50);
+constexpr SkColor kAccentColor = ColorFromARGB(255, 210, 52, 92);
 
 export namespace components {
 
@@ -39,8 +37,8 @@ SectionHeader::SectionHeader(const std::string_view title,
                              Widget *parent) :
   Widget(parent), title_text_(title), link_text_(link) {
   title_text_.setAlignment(Alignment::CenterLeft);
-  title_text_.setFontSize(15);
-  title_text_.setColor(skia_colors::black);
+  title_text_.setFontSize(15.5f);
+  title_text_.setColor(kTextColor);
 
   link_text_.setAlignment(Alignment::CenterRight);
   link_text_.setFontSize(12);

@@ -17,31 +17,100 @@ using namespace skia;
 using namespace glfw;
 using namespace ui::widgets;
 using namespace ui::layout;
+using namespace ui::render;
+
+namespace {
+
+constexpr SkColor kWindowBg = ColorFromARGB(255, 238, 243, 249);
+constexpr SkColor kSidebarFill = ColorFromARGB(104, 255, 255, 255);
+constexpr SkColor kGlowRose = ColorFromARGB(58, 255, 82, 132);
+constexpr SkColor kGlowCyan = ColorFromARGB(46, 38, 189, 220);
+constexpr SkColor kGlowAmber = ColorFromARGB(34, 255, 184, 84);
+
+// 绘制带边界的柔光椭圆
+void drawBlurredOval(SkCanvas *canvas, const SkRect &rect, SkColor color, float sigma);
+
+// 左侧整块背景面板
+class SidebarSurface : public Box {
+public:
+  using Box::Box;
+
+  // 绘制侧栏背景
+  void paint(SkCanvas *canvas) override;
+};
+
+// 保留拖拽能力但不绘制分隔线的分栏
+class MusicSplitter : public Splitter {
+public:
+  using Splitter::Splitter;
+
+  // 绘制分栏拖拽区域
+  void paint(SkCanvas *canvas) override;
+};
+
+void drawBlurredOval(SkCanvas *canvas, const SkRect &rect, SkColor color, float sigma) {
+  auto bounds = rect.makeOutset(sigma * 3.0f, sigma * 3.0f);
+  SkPaint layer;
+  layer.setImageFilter(SkImageFilters::Blur(sigma, sigma, nullptr));
+
+  SkPaint fill;
+  fill.setAntiAlias(true);
+  fill.setColor(color);
+
+  canvas->saveLayer(&bounds, &layer);
+  canvas->drawOval(rect, fill);
+  canvas->restore();
+}
+
+void SidebarSurface::paint(SkCanvas *canvas) {
+  SkPaint fill;
+  fill.setAntiAlias(true);
+  fill.setColor(kSidebarFill);
+  canvas->drawRect(borderRect(), fill);
+
+  SkPaint edge;
+  edge.setAntiAlias(true);
+  edge.setColor(ColorFromARGB(34, 255, 255, 255));
+  canvas->drawRect(SkRect::MakeXYWH(width_ - 1.0f, 0.0f, 1.0f, height_), edge);
+}
+
+void MusicSplitter::paint(SkCanvas *) {
+  // 保留拖拽命中区域，视觉上不绘制桌面分隔线
+}
+
+} // namespace
 
 export class MainWindow : public Window {
   using Window::Window;
 
 public:
+  // 创建主窗口和页面结构
   MainWindow();
+  // 渲染窗口背景和子控件
   void render(SkCanvas *canvas) final;
+  // 布局侧栏、页面和底部播放栏
   void layoutChildren() override;
 
 private:
+  // 创建左侧菜单
   void setupSidebar();
+  // 创建右侧页面
   void setupPages();
+  // 处理菜单点击切页
   void onMenuClicked(const std::string &id);
+  // 处理歌曲选中并显示播放栏
   void onSongSelected(const std::string &title, const std::string &artist, const std::string &duration);
 
-  Splitter *splitter_ = nullptr;
-  Box *sidebar_ = nullptr;
-  PageView *page_view = nullptr;
-  components::PlayerBar *player_bar = nullptr;
-  pages::LibraryPage *library_page = nullptr;
+  Splitter *splitter_ = nullptr;               // 主分栏
+  Box *sidebar_ = nullptr;                     // 左侧菜单面板
+  PageView *page_view = nullptr;               // 页面容器
+  components::PlayerBar *player_bar = nullptr; // 底部播放栏
+  pages::LibraryPage *library_page = nullptr;  // 音乐库页面
 
-  std::unordered_map<std::string, MenuButton *> menu_buttons;
+  std::unordered_map<std::string, MenuButton *> menu_buttons; // 菜单按钮集合
 
   // 播放器底栏高度
-  static constexpr float kPlayerBarHeight = 68.0f;
+  static constexpr float kPlayerBarHeight = 78.0f;
   // 各菜单项对应的 SVG 图标路径
   static constexpr auto home_svg = "resources/svg/home.svg";
   static constexpr auto browse_svg = "resources/svg/browse.svg";
@@ -53,13 +122,14 @@ private:
 };
 
 MainWindow::MainWindow() : Window(1024, 700) {
-  splitter_ = new Splitter(this);
-  splitter_->setMinLeftWidth(200.f);
-  splitter_->setMaxLeftWidth(300.f);
+  splitter_ = new MusicSplitter(this);
+  splitter_->setMinLeftWidth(224.f);
+  splitter_->setMaxLeftWidth(286.f);
 
-  sidebar_ = new Box(splitter_);
-  sidebar_->setPadding(16);
+  sidebar_ = new SidebarSurface(splitter_);
+  sidebar_->setPadding(Insets(22, 22, 22, 18));
   sidebar_->setLayout<VBoxLayout<Widget>>();
+  sidebar_->layout()->setSpacing(8);
 
   page_view = new PageView(splitter_);
 
@@ -146,6 +216,27 @@ void MainWindow::onMenuClicked(const std::string &id) {
 }
 
 void MainWindow::render(SkCanvas *canvas) {
-  canvas->clear(skia_colors::white);
+  canvas->clear(kWindowBg);
+
+  const float w = contentWidth();
+  const float h = contentHeight();
+
+  SkPaint base;
+  base.setAntiAlias(true);
+  base.setColor(kWindowBg);
+  canvas->drawRect(SkRect::MakeWH(w, h), base);
+
+  drawBlurredOval(canvas, SkRect::MakeXYWH(-120.0f, -92.0f, 430.0f, 260.0f), kGlowRose, 42.0f);
+  drawBlurredOval(canvas, SkRect::MakeXYWH(w - 320.0f, 48.0f, 420.0f, 260.0f), kGlowCyan, 48.0f);
+  drawBlurredOval(canvas, SkRect::MakeXYWH(w * 0.28f, h - 160.0f, 360.0f, 220.0f), kGlowAmber, 46.0f);
+
+  SkPaint grain;
+  grain.setAntiAlias(true);
+  grain.setColor(ColorFromARGB(18, 255, 255, 255));
+  for (int i = 0; i < 12; ++i) {
+    const float y = static_cast<float>(i) * 58.0f + 18.0f;
+    canvas->drawRect(SkRect::MakeXYWH(0, y, w, 1.0f), grain);
+  }
+
   Widget::render(canvas);
 }

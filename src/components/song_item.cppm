@@ -18,35 +18,26 @@ using namespace skia;
 
 // --- 颜色常量（Apple Music 桌面端风格） ---
 
-// 序号/时长文字颜色
-constexpr SkColor kMutedColor = ColorFromARGB(128, 0, 0, 0);
-// 歌手文字颜色
-constexpr SkColor kArtistColor = ColorFromARGB(115, 0, 0, 0);
-// 封面色块颜色
-constexpr SkColor kCoverColor = ColorFromARGB(255, 229, 229, 234);
-// 悬浮背景色
-constexpr SkColor kHoverBgColor = ColorFromARGB(12, 0, 0, 0);
-// 按下背景色
-constexpr SkColor kPressBgColor = ColorFromARGB(22, 0, 0, 0);
-// 播放中背景色
-constexpr SkColor kPlayingBgColor = ColorFromARGB(18, 252, 59, 48);
-// 播放中序号颜色
-constexpr SkColor kPlayingAccentColor = ColorFromARGB(255, 252, 59, 48);
-// 操作按钮颜色
-constexpr SkColor kActionBtnColor = ColorFromARGB(100, 0, 0, 0);
-// 喜欢按钮颜色
-constexpr SkColor kLikedColor = ColorFromARGB(255, 252, 59, 48);
-// 选中背景色
-constexpr SkColor kSelectedBgColor = ColorFromARGB(18, 0, 0, 0);
+constexpr SkColor kMutedColor = ColorFromARGB(132, 54, 65, 82);
+constexpr SkColor kArtistColor = ColorFromARGB(154, 65, 78, 96);
+constexpr SkColor kCoverColor = ColorFromARGB(255, 224, 231, 238);
+constexpr SkColor kHoverBgColor = ColorFromARGB(96, 255, 255, 255);
+constexpr SkColor kPressBgColor = ColorFromARGB(154, 248, 250, 252);
+constexpr SkColor kPlayingBgColor = ColorFromARGB(70, 255, 236, 242);
+constexpr SkColor kPlayingAccentColor = ColorFromARGB(255, 218, 52, 92);
+constexpr SkColor kActionBtnColor = ColorFromARGB(132, 42, 52, 68);
+constexpr SkColor kLikedColor = ColorFromARGB(255, 226, 47, 88);
+constexpr SkColor kSelectedBgColor = ColorFromARGB(118, 255, 255, 255);
+constexpr SkColor kSongTitleColor = ColorFromARGB(255, 24, 31, 42);
 
 // --- 布局常量 ---
 
 // 封面尺寸
 static constexpr float kCoverSize = 40.0f;
 // 封面圆角
-static constexpr float kCoverRadius = 6.0f;
+static constexpr float kCoverRadius = 10.0f;
 // 行高
-static constexpr float kRowHeight = 52.0f;
+static constexpr float kRowHeight = 58.0f;
 // 左右内边距
 static constexpr float kPadH = 10.0f;
 // 序号区宽度
@@ -63,6 +54,15 @@ static constexpr std::uint64_t kDoubleClickThresholdUs = 400'000; // 400ms
 export namespace components {
 
 /**
+ * 歌曲信息结构体
+ */
+struct SongInfo {
+  std::string title{};    // 歌曲标题
+  std::string artist{};   // 歌手名
+  std::string duration{}; // 时长
+};
+
+/**
  * 歌曲行组件：序号 + 封面色块 + 歌曲名/歌手 + 时长 + 操作按钮
  *
  * 动画模型：每个交互状态拥有独立的 float 进度通道 [0,1]，
@@ -72,10 +72,9 @@ export namespace components {
  */
 class SongItem : public Widget {
 public:
+  /** 创建歌曲行组件 */
   SongItem(int index,
-           std::string_view title,
-           std::string_view artist,
-           std::string_view duration,
+           SongInfo info,
            bool is_playing = false,
            Widget *parent = nullptr);
 
@@ -86,6 +85,8 @@ public:
   void setSelected(bool value);
   /** 是否选中 */
   [[nodiscard]] bool isSelected() const { return selected; }
+  /** 获取歌曲信息 */
+  [[nodiscard]] const SongInfo& info() const { return info_; }
 
   Signal<SongItem*> doubleClicked; // 双击信号
 
@@ -108,6 +109,8 @@ private:
   [[nodiscard]] bool isOverHeart(float x, float y) const;
   /** 判断鼠标是否悬浮在更多按钮上 */
   [[nodiscard]] bool isOverMore(float x, float y) const;
+  /** 设置喜欢按钮弹性动画进度 */
+  void setLikeT(float t) noexcept { like_t = t; }
 
   // --- 渲染节点 ---
   RenderText index_text;             // 序号
@@ -118,7 +121,9 @@ private:
   RenderText artist_text;            // 歌手
   RenderText duration_text;          // 时长
   RenderBackground hover_bg;         // 行背景（覆盖整行）
-  float hover_radius = 8.0f;         // 行背景圆角
+  float hover_radius = 12.0f;        // 行背景圆角
+  SongInfo info_;                    // 歌曲信息
+  SkColor cover_color = kCoverColor; // 封面主色
 
   // --- 交互状态 ---
   bool is_playing = false;           // 是否播放中
@@ -133,24 +138,32 @@ private:
   float press_t = 0.0f;  // 按下效果 [0,1]
   float select_t = 0.0f; // 选中渐入 [0,1]
   float action_t = 0.0f; // 操作按钮透明度 [0,1]
+  float like_t = 0.0f;   // 喜欢按钮弹性反馈
 };
 
 SongItem::SongItem(const int index,
-                   const std::string_view title,
-                   const std::string_view artist,
-                   const std::string_view duration,
+                   SongInfo info,
                    const bool is_playing,
                    Widget *parent) :
   Widget(parent), index_text(std::to_string(index + 1)), cover_bg(),
-  cover_svg("resources/svg/play.svg"), title_text(title), artist_text(artist),
-  duration_text(duration), is_playing(is_playing) {
+  cover_svg("resources/svg/play.svg"), title_text(info.title), artist_text(info.artist),
+  duration_text(info.duration), info_(std::move(info)), is_playing(is_playing) {
+  constexpr SkColor palette[] = {
+    ColorFromARGB(255, 255, 99, 132),
+    ColorFromARGB(255, 42, 140, 233),
+    ColorFromARGB(255, 16, 178, 180),
+    ColorFromARGB(255, 245, 155, 54),
+    ColorFromARGB(255, 128, 111, 232),
+  };
+  cover_color = palette[static_cast<std::size_t>(index) % std::size(palette)];
+
   // 序号
   index_text.setFontSize(12);
   index_text.setColor(is_playing ? kPlayingAccentColor : kMutedColor);
   index_text.setAlignment(Alignment::CenterRight);
 
   // 封面色块
-  cover_bg.setColor(kCoverColor);
+  cover_bg.setColor(cover_color);
   cover_bg.radius = &cover_radius;
 
   // 封面播放图标
@@ -158,7 +171,7 @@ SongItem::SongItem(const int index,
 
   // 标题
   title_text.setFontSize(13);
-  title_text.setColor(is_playing ? kPlayingAccentColor : skia_colors::black);
+  title_text.setColor(is_playing ? kPlayingAccentColor : kSongTitleColor);
   title_text.setAlignment(Alignment::TopLeft);
 
   // 歌手
@@ -238,6 +251,8 @@ void SongItem::onMouseLeftReleased(float x, float y) {
 
   if (isOverHeart(x, y)) {
     liked = !liked;
+    like_t = 1.0f;
+    startAnimation<&SongItem::setLikeT>(like_t, 0.0f, 260.0f, CubicBezier::EaseOut());
     return;
   }
   if (isOverMore(x, y)) {
@@ -321,12 +336,42 @@ void SongItem::layoutChildren() {
 }
 
 void SongItem::paint(SkCanvas *canvas) {
+  canvas->save();
+  const float press_scale = 1.0f - press_t * 0.01f;
+  canvas->translate(contentWidth() * 0.5f, kRowHeight * 0.5f);
+  canvas->scale(press_scale, press_scale);
+  canvas->translate(-contentWidth() * 0.5f, -kRowHeight * 0.5f);
+
   // 合成背景色并渲染
   hover_bg.setColor(computeBackgroundColor());
   hover_bg.render(canvas);
 
   index_text.render(canvas);
+
+  if (hover_t > 0.01f || select_t > 0.01f) {
+    constexpr float sigma = 6.0f;
+    auto glow_rect = borderRect().makeInset(8.0f, 8.0f).makeOffset(0, 3.0f);
+    auto layer_bounds = glow_rect.makeOutset(sigma * 3.0f, sigma * 3.0f);
+    SkPaint glow_layer;
+    glow_layer.setImageFilter(SkImageFilters::Blur(sigma, sigma, nullptr));
+    SkPaint glow;
+    glow.setAntiAlias(true);
+    glow.setColor(ColorFromARGB(static_cast<U8CPU>(10.0f * std::max(hover_t, select_t)), 18, 28, 44));
+    canvas->saveLayer(&layer_bounds, &glow_layer);
+    canvas->drawRoundRect(glow_rect, hover_radius, hover_radius, glow);
+    canvas->restore();
+  }
+
   cover_bg.render(canvas);
+
+  SkPaint coverShine;
+  coverShine.setAntiAlias(true);
+  coverShine.setColor(ColorFromARGB(52, 255, 255, 255));
+  constexpr float cover_x = kPadH + kIndexWidth + kGap;
+  constexpr float cover_y = (kRowHeight - kCoverSize) * 0.5f;
+  canvas->drawRoundRect(SkRect::MakeXYWH(cover_x + 2.0f, cover_y + 2.0f, kCoverSize - 4.0f, kCoverSize * 0.42f),
+                        kCoverRadius - 2.0f, kCoverRadius - 2.0f, coverShine);
+
   cover_svg.render(canvas);
   title_text.render(canvas);
   artist_text.render(canvas);
@@ -344,7 +389,13 @@ void SongItem::paint(SkCanvas *canvas) {
     heart_paint.setStyle(SkPaint::kFill_Style);
     heart_paint.setColor(liked ? kLikedColor : kActionBtnColor);
     heart_paint.setAlphaf(liked ? 1.0f : action_t);
+    canvas->save();
+    const float heart_scale = 1.0f + like_t * 0.16f;
+    canvas->translate(heart_cx, btn_cy);
+    canvas->scale(heart_scale, heart_scale);
+    canvas->translate(-heart_cx, -btn_cy);
     canvas->drawPath(path::makeHeartPath(heart_cx, btn_cy, 12.0f), heart_paint);
+    canvas->restore();
 
     // 更多按钮（省略号）：仅 hover 时可见
     if (action_t > 0.01f) {
@@ -358,6 +409,7 @@ void SongItem::paint(SkCanvas *canvas) {
       canvas->drawCircle(dots_cx + 7.0f, btn_cy, 2.0f, dots_paint);
     }
   }
+  canvas->restore();
 }
 
 } // namespace components
