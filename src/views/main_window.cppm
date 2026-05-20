@@ -134,7 +134,7 @@ private:
 
 MainWindow::MainWindow() : Window(1024, 700) {
   splitter_ = new MusicSplitter(this);
-  splitter_->setMinLeftWidth(224.f);
+  splitter_->setMinLeftWidth(174.f);
   splitter_->setMaxLeftWidth(286.f);
 
   sidebar_ = new SidebarSurface(splitter_);

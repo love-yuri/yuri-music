@@ -7,7 +7,6 @@ import std;
 import ui;
 import skia;
 import core;
-import glfw.api;
 
 using namespace ui::render;
 using namespace ui::layout;
@@ -693,20 +692,17 @@ void PlayerBar::onMouseMove(float x, float y) {
   }
 
   const int btn = hitTestButton(x, y);
-  const bool on_bar = btn == 0 && (hitTestProgress(x, y) || hitTestVolume(x, y));
   if (btn != hovered_btn) {
     hovered_btn = btn;
     startAnimation<&PlayerBar::setBtnHoverT>(btn_hover_t, (btn == 1 || btn == 3) ? 1.0f : 0.0f,
                                              120.0f, CubicBezier::EaseOut());
     startAnimation<&PlayerBar::setPlayHoverT>(play_hover_t, btn == 2 ? 1.0f : 0.0f, 120.0f,
-                                              CubicBezier::EaseOut());
+                                               CubicBezier::EaseOut());
   }
-  window()->setCursor((btn > 0 || on_bar) ? glfw::CursorType::Hand : glfw::CursorType::Arrow);
 }
 
 void PlayerBar::onMouseLeave(float, float) {
   hovered_btn = 0;
-  window()->setCursor(glfw::CursorType::Arrow);
   startAnimation<&PlayerBar::setBtnHoverT>(btn_hover_t, 0.0f, 180.0f, CubicBezier::EaseOut());
   startAnimation<&PlayerBar::setPlayHoverT>(play_hover_t, 0.0f, 180.0f, CubicBezier::EaseOut());
 }
