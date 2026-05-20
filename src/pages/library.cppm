@@ -42,25 +42,6 @@ private:
   static std::string formatDuration(int seconds);
   // 拼接歌手名
   static std::string formatSingers(const std::vector<SingerType> &singers);
-  // 生成可写入文件系统的文件名
-  static std::string sanitizeFileName(std::string name);
-
-  struct SongDownloadInfo {
-    std::string mid;
-    std::string title;
-    std::string artist;
-    bool has_flac{};
-    bool has_ape{};
-    bool has_mp3_320{};
-    bool has_mp3_128{};
-  };
-  // 生成歌曲缓存文件名主体
-  static std::string makeFileStem(const SongDownloadInfo &song);
-  // 按音质从高到低生成候选格式
-  static std::vector<qqmusic_api::song::SongFileFormat>
-  preferredFormats(const SongDownloadInfo &song);
-  // 获取已存在的本地缓存文件
-  static std::filesystem::path existingSongPath(const SongDownloadInfo &song);
   // 当前选中的歌曲是否仍然是指定 mid
   bool isSelectedMid(std::string_view mid);
 
@@ -71,11 +52,12 @@ private:
   int offset_{ 0 };                                                        // 当前加载偏移
   bool loading_{ false };                                                  // 是否正在加载
   bool has_more{ true };                                                   // 是否还有更多数据
-  std::unordered_map<const SongItem *, SongDownloadInfo> song_downloads{}; // 歌曲下载信息
-  std::unordered_set<std::string> downloading_mids{};                      // 正在下载的歌曲 mid
-  std::mutex download_mutex{};                                             // 下载状态锁
-  std::string selected_mid{};                                              // 当前选中的歌曲 mid
-  std::mutex selected_mutex{};                                             // 当前选中状态锁
+  std::unordered_map<const SongItem *, qqmusic_api::song::SongDownloadInfo>
+    song_downloads{};                                 // 歌曲下载信息
+  std::unordered_set<std::string> downloading_mids{}; // 正在下载的歌曲 mid
+  std::mutex download_mutex{};                        // 下载状态锁
+  std::string selected_mid{};                         // 当前选中的歌曲 mid
+  std::mutex selected_mutex{};                        // 当前选中状态锁
 
 public:
   Signal<std::string, std::string, std::string> songSelected{}; // 歌曲选中信号
@@ -122,7 +104,7 @@ LibraryPage::LibraryPage(Widget *parent) : Widget(parent) {
           song_items.push_back(item);
           // clang-format off
           song_downloads.emplace(item,
-            SongDownloadInfo{
+            qqmusic_api::song::SongDownloadInfo{
                std::string(music.mid),
                title,
                artist,
@@ -213,70 +195,6 @@ std::string LibraryPage::formatSingers(const std::vector<SingerType> &singers) {
   return result;
 }
 
-std::string LibraryPage::sanitizeFileName(std::string name) {
-  constexpr std::string_view invalid = R"(<>:"/\|?*)";
-  for (char &ch : name) {
-    if (static_cast<unsigned char>(ch) < 32 || invalid.find(ch) != std::string_view::npos) {
-      ch = '_';
-    }
-  }
-
-  while (!name.empty() && (name.back() == '.' || name.back() == ' ')) {
-    name.pop_back();
-  }
-
-  if (name.empty()) {
-    return "unknown";
-  }
-  return name;
-}
-
-std::string LibraryPage::makeFileStem(const SongDownloadInfo &song) {
-  auto file_stem = song.title;
-  if (!song.artist.empty()) {
-    file_stem += " - ";
-    file_stem += song.artist;
-  }
-  return sanitizeFileName(std::move(file_stem));
-}
-
-std::vector<qqmusic_api::song::SongFileFormat>
-LibraryPage::preferredFormats(const SongDownloadInfo &song) {
-  std::vector<qqmusic_api::song::SongFileFormat> formats;
-  formats.reserve(5);
-
-  if (song.has_mp3_320) {
-    formats.push_back(qqmusic_api::song::mp3_320_format);
-  }
-  if (song.has_mp3_128) {
-    formats.push_back(qqmusic_api::song::mp3_128_format);
-  }
-  formats.push_back(qqmusic_api::song::m4a_format);
-  if (song.has_flac) {
-    formats.push_back(qqmusic_api::song::flac_format);
-  }
-  if (song.has_ape) {
-    formats.push_back(qqmusic_api::song::ape_format);
-  }
-
-  return formats;
-}
-
-std::filesystem::path LibraryPage::existingSongPath(const SongDownloadInfo &song) {
-  const auto dir = std::filesystem::path("musics");
-  const auto safe_file_stem = makeFileStem(song);
-  std::error_code ec;
-
-  for (const auto &format : preferredFormats(song)) {
-    const auto path = dir / std::format("{}.{}", safe_file_stem, format.e);
-    if (std::filesystem::exists(path, ec) && !ec) {
-      return path;
-    }
-  }
-
-  return {};
-}
-
 bool LibraryPage::isSelectedMid(const std::string_view mid) {
   std::lock_guard lock(selected_mutex);
   return selected_mid == mid;
@@ -307,8 +225,8 @@ void LibraryPage::downloadSong(const SongItem *item) {
     return;
   }
 
-  const SongDownloadInfo song = info_it->second;
-  if (const auto path = existingSongPath(song); !path.empty()) {
+  const auto song = info_it->second;
+  if (const auto path = qqmusic_api::song::cached_song_path(song); !path.empty()) {
     yuri::info("使用本地音乐缓存播放: {}", path.string());
     loadingStateChanged.emit(false);
     if (bass24::player().play(path)) {
@@ -342,66 +260,11 @@ void LibraryPage::downloadSong(const SongItem *item) {
     };
 
     try {
-      const auto dir = std::filesystem::path("musics");
-      std::error_code ec;
-      std::filesystem::create_directories(dir, ec);
-      if (ec) {
-        yuri::error("创建音乐目录失败: {}", ec.message());
+      const auto path = qqmusic_api::song::download_song_file(song);
+      if (path.empty()) {
         cleanup();
         return;
       }
-
-      const auto safe_file_stem = makeFileStem(song);
-      std::string url;
-      qqmusic_api::song::SongFileFormat selected_format = qqmusic_api::song::m4a_format;
-      std::filesystem::path selected_path;
-      for (const auto &format : preferredFormats(song)) {
-        const auto path = dir / std::format("{}.{}", safe_file_stem, format.e);
-        if (std::filesystem::exists(path, ec) && !ec) {
-          yuri::info("歌曲已存在，直接播放: {}", path.string());
-          if (bass24::player().play(path)) {
-            playbackStateChanged.emit(true);
-          }
-          cleanup();
-          return;
-        }
-
-        url = qqmusic_api::song::get_song_download_url(song.mid, format);
-        if (!url.empty()) {
-          selected_format = format;
-          selected_path = path;
-          break;
-        }
-      }
-
-      if (url.empty() || selected_path.empty()) {
-        yuri::error("获取歌曲下载链接失败: {}", song.title);
-        cleanup();
-        return;
-      }
-
-      const curl::KeyValueList headers = {
-        { "referer", "https://y.qq.com/" },
-        { "cookie", qqmusic_api_config.cookie },
-        { "user-agent",
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36" },
-      };
-      const auto data = curl::get(url, headers);
-      if (!data) {
-        yuri::error("下载歌曲失败: {}.{}", song.title, selected_format.e);
-        cleanup();
-        return;
-      }
-
-      std::ofstream output(selected_path, std::ios::binary);
-      if (!output.is_open()) {
-        yuri::error("打开音乐文件失败: {}", selected_path.string());
-        cleanup();
-        return;
-      }
-
-      output.write(data->data(), static_cast<std::streamsize>(data->size()));
-      yuri::info("歌曲下载完成: {}", selected_path.string());
 
       bool should_play = false;
       {
@@ -409,9 +272,9 @@ void LibraryPage::downloadSong(const SongItem *item) {
         should_play = selected_mid == song.mid;
       }
       if (should_play) {
-        if (bass24::player().play(selected_path)) {
+        if (bass24::player().play(path)) {
           playbackStateChanged.emit(true);
-          yuri::info("播放: {}", selected_path.string());
+          yuri::info("播放: {}", path.string());
         }
       }
     } catch (const std::exception &e) {
@@ -459,7 +322,7 @@ void LibraryPage::loadMore() {
       const auto artist = info.artist;
       auto *item = new SongItem(index++, std::move(info), false, items_);
       song_items.push_back(item);
-      song_downloads.emplace(item, SongDownloadInfo{
+      song_downloads.emplace(item, qqmusic_api::song::SongDownloadInfo{
                                      std::string(music.mid),
                                      title,
                                      artist,
