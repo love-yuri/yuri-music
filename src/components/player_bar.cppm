@@ -22,9 +22,8 @@ constexpr SkColor kBarTopLine = ColorFromARGB(52, 42, 52, 68);
 constexpr SkColor kAccent = ColorFromARGB(255, 218, 52, 92);
 constexpr SkColor kAccentHot = ColorFromARGB(255, 255, 76, 119);
 constexpr SkColor kInk = ColorFromARGB(255, 17, 24, 36);
-constexpr SkColor kProgressTrack = ColorFromARGB(54, 54, 65, 82);
-constexpr SkColor kProgressFill = ColorFromARGB(236, 218, 52, 92);
-constexpr SkColor kProgressThumb = ColorFromARGB(255, 218, 52, 92);
+constexpr SkColor kProgressTrack = ColorFromARGB(78, 54, 65, 82);
+constexpr SkColor kProgressFill = ColorFromARGB(255, 218, 52, 92);
 constexpr SkColor kTextPrimary = ColorFromARGB(255, 20, 26, 36);
 constexpr SkColor kTextSecondary = ColorFromARGB(176, 56, 68, 86);
 constexpr SkColor kTextMuted = ColorFromARGB(122, 54, 65, 82);
@@ -52,10 +51,11 @@ static constexpr float kVolIconW = 16.0f;
 static constexpr float kTimeW = 36.0f;
 static constexpr float kProgressMaxW = 520.0f;
 static constexpr float kProgressMinW = 160.0f;
-static constexpr float kProgressH = 3.0f;
+static constexpr float kProgressH = 4.0f;
 static constexpr float kLeftW = 220.0f;
 static constexpr float kRightW = 180.0f;
 static constexpr float kRowGap = 6.0f;
+static constexpr float kPi = 3.14159265358979323846f;
 
 export namespace components {
 
@@ -70,6 +70,12 @@ class PlayerBar : public Widget {
 public:
   explicit PlayerBar(Widget *parent = nullptr);
 
+  Signal<> previousClicked;
+  Signal<> playPauseClicked;
+  Signal<> nextClicked;
+  Signal<double> seekRequested;
+  Signal<float> volumeChanged;
+
   void layoutChildren() override;
   void paint(SkCanvas *canvas) override;
   void render(SkCanvas *canvas) override;
@@ -77,9 +83,15 @@ public:
   void show();
   void hide();
   void updateSong(std::string_view title, std::string_view artist, std::string_view duration);
+  void setPlaying(bool value) noexcept;
+  void setLoading(bool value) noexcept;
+  void setPlaybackPosition(double position_seconds, double duration_seconds);
+  void setVolume(float value) noexcept;
 
   // 是否正在展示（含动画中）
-  [[nodiscard]] bool showing() const noexcept { return showing_; }
+  [[nodiscard]] bool showing() const noexcept {
+    return showing_;
+  }
 
 protected:
   void onMouseMove(float x, float y) override;
@@ -88,54 +100,88 @@ protected:
   void onMouseLeftReleased(float x, float y) override;
 
 private:
-  void setSlideT(float t) noexcept { slide_t = t; }
-  void setAlphaT(float t) noexcept { alpha_ = t; }
-  void setBtnHoverT(float t) noexcept { btn_hover_t = t; }
-  void setBtnPressT(float t) noexcept { btn_press_t = t; }
-  void setPlayHoverT(float t) noexcept { play_hover_t = t; }
-  void setPlayPressT(float t) noexcept { play_press_t = t; }
-  void setTextAlphaT(float t) noexcept { text_alpha = t; }
+  void setSlideT(float t) noexcept {
+    slide_t = t;
+  }
+  void setAlphaT(float t) noexcept {
+    alpha_ = t;
+  }
+  void setBtnHoverT(float t) noexcept {
+    btn_hover_t = t;
+  }
+  void setBtnPressT(float t) noexcept {
+    btn_press_t = t;
+  }
+  void setPlayHoverT(float t) noexcept {
+    play_hover_t = t;
+  }
+  void setPlayPressT(float t) noexcept {
+    play_press_t = t;
+  }
+  void setTextAlphaT(float t) noexcept {
+    text_alpha = t;
+  }
 
   [[nodiscard]] int hitTestButton(float x, float y) const;
+  [[nodiscard]] bool hitTestProgress(float x, float y) const;
+  [[nodiscard]] bool hitTestVolume(float x, float y) const;
+  [[nodiscard]] double progressRatioFromPoint(float x) const;
+  void requestSeekFromPoint(float x);
+  void updateVolumeFromPoint(float x);
+  static std::string formatTime(double seconds);
   void drawControlIsland(SkCanvas *c);
   void drawSideButtonHalo(SkCanvas *c, float cx, float cy, bool active);
   void drawPrevIcon(SkCanvas *c, float cx, float cy, const SkPaint &p);
   void drawPlayIcon(SkCanvas *c, float cx, float cy, float sz, const SkPaint &p);
+  void drawPauseIcon(SkCanvas *c, float cx, float cy, const SkPaint &p);
+  void drawLoadingSpinner(SkCanvas *c, float cx, float cy);
   void drawNextIcon(SkCanvas *c, float cx, float cy, const SkPaint &p);
   void drawSpeaker(SkCanvas *c, float x, float cy, const SkPaint &p);
   void drawProgressBar(SkCanvas *c, float cx, float cy, float max_w);
   void drawVolumeBar(SkCanvas *c, float x, float cy, float w);
 
   // 渲染节点
-  RenderBackground bg_;                // 背景
-  RenderBackground cover_bg;           // 封面色块
-  RenderSvg cover_svg;                 // 封面图标
-  float cover_radius = kCoverRadius;   // 封面圆角
-  RenderText title_text;               // 歌曲标题
-  RenderText artist_text;              // 歌手名
-  RenderText time_left;                // 已播放时长
-  RenderText time_right;               // 总时长
+  RenderBackground bg_;              // 背景
+  RenderBackground cover_bg;         // 封面色块
+  RenderSvg cover_svg;               // 封面图标
+  float cover_radius = kCoverRadius; // 封面圆角
+  RenderText title_text;             // 歌曲标题
+  RenderText artist_text;            // 歌手名
+  RenderText time_left;              // 已播放时长
+  RenderText time_right;             // 总时长
 
   // 动画
-  float slide_t = 0.0f;                // 滑入进度
-  float alpha_ = 0.0f;                 // 整体透明度
-  float btn_hover_t = 0.0f;            // 侧按钮悬浮
-  float btn_press_t = 0.0f;            // 侧按钮按下
-  float play_hover_t = 0.0f;           // 播放按钮悬浮
-  float play_press_t = 0.0f;           // 播放按钮按下
-  float text_alpha = 1.0f;             // 文字透明度
+  float slide_t = 0.0f;      // 滑入进度
+  float alpha_ = 0.0f;       // 整体透明度
+  float btn_hover_t = 0.0f;  // 侧按钮悬浮
+  float btn_press_t = 0.0f;  // 侧按钮按下
+  float play_hover_t = 0.0f; // 播放按钮悬浮
+  float play_press_t = 0.0f; // 播放按钮按下
+  float text_alpha = 1.0f;   // 文字透明度
 
   // 按钮中心坐标（布局时计算）
-  float btn_prev_cx = 0.0f;            // 上一首 X
-  float btn_play_cx = 0.0f;            // 播放 X
-  float btn_next_cx = 0.0f;            // 下一首 X
-  float btn_cy = 0.0f;                 // 按钮 Y
-  float progress_cx = 0.0f;            // 进度条中心 X
-  float progress_cy = 0.0f;            // 进度条中心 Y
-  float progress_w = kProgressMaxW;    // 进度条宽度
+  float btn_prev_cx = 0.0f;         // 上一首 X
+  float btn_play_cx = 0.0f;         // 播放 X
+  float btn_next_cx = 0.0f;         // 下一首 X
+  float btn_cy = 0.0f;              // 按钮 Y
+  float progress_cx = 0.0f;         // 进度条中心 X
+  float progress_cy = 0.0f;         // 进度条中心 Y
+  float progress_w = kProgressMaxW; // 进度条宽度
+  float volume_x = 0.0f;            // 音量条 X
+  float volume_cy = 0.0f;           // 音量条中心 Y
 
-  int hovered_btn = 0;                 // 当前悬浮按钮
-  bool showing_ = false;               // 是否显示
+  int hovered_btn = 0;              // 当前悬浮按钮
+  bool showing_ = false;            // 是否显示
+  bool playing_ = false;            // 是否正在播放
+  bool loading_ = false;            // 是否正在加载当前歌曲
+  bool progress_dragging = false;   // 是否正在拖动进度
+  bool volume_dragging = false;     // 是否正在拖动音量
+  double pending_seek_ratio = 0.0;  // 拖动结束后应用的目标进度
+  double duration_seconds = 0.0;    // 当前歌曲时长
+  int elapsed_display_seconds = -1; // 当前显示的已播放秒数
+  int duration_display_second = -1; // 当前显示的总时长秒数
+  float progress_ = 0.0f;           // 当前播放进度 0..1
+  float volume_ = 1.0f;             // 当前音量 0..1
 };
 
 PlayerBar::PlayerBar(Widget *parent) : Widget(parent), cover_svg("resources/svg/play.svg") {
@@ -157,6 +203,7 @@ PlayerBar::PlayerBar(Widget *parent) : Widget(parent), cover_svg("resources/svg/
   time_left.setFontSize(10);
   time_left.setColor(kTextMuted);
   time_left.setAlignment(Alignment::CenterRight);
+  time_left.setText("0:00");
 
   time_right.setFontSize(10);
   time_right.setColor(kTextMuted);
@@ -182,13 +229,77 @@ void PlayerBar::hide() {
   markLayoutDirty();
 }
 
-void PlayerBar::updateSong(std::string_view title, std::string_view artist, std::string_view duration) {
+void PlayerBar::updateSong(std::string_view title,
+                           std::string_view artist,
+                           std::string_view duration) {
   text_alpha = 0.0f;
   title_text.setText(title);
   artist_text.setText(artist);
   time_right.setText(duration);
+  time_left.setText("0:00");
+  progress_ = 0.0f;
+  duration_seconds = 0.0;
+  elapsed_display_seconds = 0;
+  duration_display_second = -1;
   startAnimation<&PlayerBar::setTextAlphaT>(text_alpha, 1.0f, 250.0f, CubicBezier::EaseOut());
   markLayoutDirty();
+}
+
+void PlayerBar::setPlaying(const bool value) noexcept {
+  if (playing_ == value) return;
+  playing_ = value;
+  markLayoutDirty();
+}
+
+void PlayerBar::setLoading(const bool value) noexcept {
+  if (loading_ == value) return;
+  loading_ = value;
+  markLayoutDirty();
+}
+
+void PlayerBar::setPlaybackPosition(const double position_seconds, double duration_seconds) {
+  const double safe_position = std::max(0.0, position_seconds);
+  const double safe_duration = std::max(0.0, duration_seconds);
+  const float next_progress =
+    safe_duration > 0.001 ?
+      static_cast<float>(std::clamp(safe_position / safe_duration, 0.0, 1.0)) :
+      0.0f;
+
+  bool changed = std::abs(progress_ - next_progress) > 0.001f;
+  progress_ = next_progress;
+
+  const int elapsed_seconds = static_cast<int>(safe_position);
+  if (elapsed_seconds != elapsed_display_seconds) {
+    elapsed_display_seconds = elapsed_seconds;
+    time_left.setText(formatTime(elapsed_seconds));
+    changed = true;
+  }
+
+  if (safe_duration > 0.001) {
+    this->duration_seconds = safe_duration;
+    duration_seconds = static_cast<int>(std::lround(safe_duration));
+    if (duration_seconds != duration_display_second) {
+      duration_display_second = static_cast<int>(duration_seconds);
+      time_right.setText(formatTime(duration_seconds));
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    markLayoutDirty();
+  }
+}
+
+void PlayerBar::setVolume(const float value) noexcept {
+  const float next = std::clamp(value, 0.0f, 1.0f);
+  if (std::abs(volume_ - next) <= 0.001f) return;
+  volume_ = next;
+  markLayoutDirty();
+}
+
+std::string PlayerBar::formatTime(const double seconds) {
+  const auto total = static_cast<int>(seconds);
+  return std::format("{}:{:02}", total / 60, total % 60);
 }
 
 void PlayerBar::layoutChildren() {
@@ -230,11 +341,14 @@ void PlayerBar::layoutChildren() {
 
   // 时长文字
   const float prog_half = progress_w * 0.5f;
-  time_left.update(SkRect::MakeXYWH(progress_cx - prog_half - kTimeW - 8.0f, progress_cy - 7.0f, kTimeW, 14.0f));
-  time_right.update(SkRect::MakeXYWH(progress_cx + prog_half + 8.0f, progress_cy - 7.0f, kTimeW, 14.0f));
+  time_left.update(
+    SkRect::MakeXYWH(progress_cx - prog_half - kTimeW - 8.0f, progress_cy - 7.0f, kTimeW, 14.0f));
+  time_right.update(
+    SkRect::MakeXYWH(progress_cx + prog_half + 8.0f, progress_cy - 7.0f, kTimeW, 14.0f));
 
   // ─── 右列：音量 ───
-  // 音量在 paint 中直接绘制
+  volume_x = w - kPadH - kVolWidth;
+  volume_cy = h * 0.5f;
 }
 
 void PlayerBar::render(SkCanvas *canvas) {
@@ -290,8 +404,9 @@ void PlayerBar::paint(SkCanvas *canvas) {
     SkPaint glow;
     glow.setAntiAlias(true);
     glow.setColor(ColorFromARGB(50, 255, 255, 255));
-    canvas->drawRoundRect(SkRect::MakeXYWH(panel.fLeft + 1.0f, panel.fTop + 1.0f, panel.width() - 2.0f, 24.0f),
-                          panel_r - 2.0f, panel_r - 2.0f, glow);
+    canvas->drawRoundRect(
+      SkRect::MakeXYWH(panel.fLeft + 1.0f, panel.fTop + 1.0f, panel.width() - 2.0f, 24.0f),
+      panel_r - 2.0f, panel_r - 2.0f, glow);
   }
 
   // ─── 顶部分割线 ───
@@ -327,9 +442,8 @@ void PlayerBar::paint(SkCanvas *canvas) {
     highlight.setColor(ColorFromARGB(44, 255, 255, 255));
     const float hx = kPadH;
     const float hy = (h - kCoverSize) * 0.5f;
-    canvas->drawRoundRect(
-      SkRect::MakeLTRB(hx, hy, hx + kCoverSize, hy + kCoverSize * 0.5f),
-      kCoverRadius, kCoverRadius, highlight);
+    canvas->drawRoundRect(SkRect::MakeLTRB(hx, hy, hx + kCoverSize, hy + kCoverSize * 0.5f),
+                          kCoverRadius, kCoverRadius, highlight);
   }
 
   // ─── 文字 ───
@@ -349,7 +463,6 @@ void PlayerBar::paint(SkCanvas *canvas) {
 
   SkPaint btn;
   btn.setAntiAlias(true);
-
 
   // 上一曲
   {
@@ -380,12 +493,19 @@ void PlayerBar::paint(SkCanvas *canvas) {
 
     SkPaint playShine;
     playShine.setAntiAlias(true);
-    playShine.setColor(ColorFromARGB(static_cast<U8CPU>(22.0f + play_hover_t * 14.0f), 255, 255, 255));
+    playShine.setColor(
+      ColorFromARGB(static_cast<U8CPU>(22.0f + play_hover_t * 14.0f), 255, 255, 255));
     canvas->drawCircle(btn_play_cx - 5.0f, btn_cy - 5.5f, 4.0f, playShine);
 
     btn.setColor(skia_colors::white);
     btn.setAlphaf(lerp(0.92f, 1.0f, play_hover_t));
-    drawPlayIcon(canvas, btn_play_cx, btn_cy, 14.0f, btn);
+    if (loading_) {
+      drawLoadingSpinner(canvas, btn_play_cx, btn_cy);
+    } else if (playing_) {
+      drawPauseIcon(canvas, btn_play_cx, btn_cy, btn);
+    } else {
+      drawPlayIcon(canvas, btn_play_cx, btn_cy, 14.0f, btn);
+    }
     canvas->restore();
   }
 
@@ -406,14 +526,13 @@ void PlayerBar::paint(SkCanvas *canvas) {
   drawProgressBar(canvas, progress_cx, progress_cy, progress_w);
 
   // ─── 右侧：音量 ───
-  const float vol_x = w - kPadH - kVolWidth;
-  drawSpeaker(canvas, vol_x - kVolIconW - 4.0f, h * 0.5f, btn);
-  drawVolumeBar(canvas, vol_x, h * 0.5f, kVolWidth);
+  drawSpeaker(canvas, volume_x - kVolIconW - 4.0f, volume_cy, btn);
+  drawVolumeBar(canvas, volume_x, volume_cy, kVolWidth);
 }
 
 void PlayerBar::drawControlIsland(SkCanvas *c) {
   const auto island = SkRect::MakeXYWH(btn_prev_cx - 32.0f, btn_cy - kControlIslandH * 0.5f,
-                                      btn_next_cx - btn_prev_cx + 64.0f, kControlIslandH);
+                                       btn_next_cx - btn_prev_cx + 64.0f, kControlIslandH);
   const float island_r = kControlIslandH * 0.5f;
 
   SkPaint shadow_layer;
@@ -469,27 +588,25 @@ void PlayerBar::drawSideButtonHalo(SkCanvas *c, const float cx, const float cy, 
 
 // ─── 进度条 ───
 void PlayerBar::drawProgressBar(SkCanvas *canvas, float cx, float cy, float max_w) {
-  const float x0 = cx - max_w * 0.5f;
+  const float x0 = std::round(cx - max_w * 0.5f);
+  const float y0 = std::round(cy - kProgressH * 0.5f);
+  const float w = std::round(max_w);
   const float r = kProgressH * 0.5f;
 
   // 轨道
   SkPaint track;
   track.setAntiAlias(true);
   track.setColor(kProgressTrack);
-  canvas->drawRoundRect(SkRect::MakeXYWH(x0, cy - r, max_w, kProgressH), r, r, track);
+  canvas->drawRoundRect(SkRect::MakeXYWH(x0, y0, w, kProgressH), r, r, track);
 
   // 填充
-  const float fill_w = max_w * 0.3f;
+  const float fill_w = std::round(w * std::clamp(progress_, 0.0f, 1.0f));
+  if (fill_w <= 0.0f) return;
+
   SkPaint fill;
   fill.setAntiAlias(true);
   fill.setColor(kProgressFill);
-  canvas->drawRoundRect(SkRect::MakeXYWH(x0, cy - r, fill_w, kProgressH), r, r, fill);
-
-  // 圆点滑块
-  SkPaint dot;
-  dot.setAntiAlias(true);
-  dot.setColor(kProgressThumb);
-  canvas->drawCircle(x0 + fill_w, cy, 4.0f, dot);
+  canvas->drawRoundRect(SkRect::MakeXYWH(x0, y0, fill_w, kProgressH), r, r, fill);
 }
 
 // ─── 音量条 ───
@@ -501,7 +618,7 @@ void PlayerBar::drawVolumeBar(SkCanvas *canvas, float x, float cy, float w) {
   track.setColor(kVolTrack);
   canvas->drawRoundRect(SkRect::MakeXYWH(x, cy - r, w, kVolTrackH), r, r, track);
 
-  const float fill_w = w * 0.7f;
+  const float fill_w = w * std::clamp(volume_, 0.0f, 1.0f);
   SkPaint fill;
   fill.setAntiAlias(true);
   fill.setColor(kVolFill);
@@ -518,26 +635,73 @@ void PlayerBar::drawVolumeBar(SkCanvas *canvas, float x, float cy, float w) {
 int PlayerBar::hitTestButton(float x, float y) const {
   float dx, dy;
 
-  dx = x - btn_prev_cx; dy = y - btn_cy;
+  dx = x - btn_prev_cx;
+  dy = y - btn_cy;
   if (dx * dx + dy * dy < (kSideBtnR + 8.0f) * (kSideBtnR + 8.0f)) return 1;
 
-  dx = x - btn_play_cx; dy = y - btn_cy;
+  dx = x - btn_play_cx;
+  dy = y - btn_cy;
   if (dx * dx + dy * dy < kPlayBtnBgR * kPlayBtnBgR) return 2;
 
-  dx = x - btn_next_cx; dy = y - btn_cy;
+  dx = x - btn_next_cx;
+  dy = y - btn_cy;
   if (dx * dx + dy * dy < (kSideBtnR + 8.0f) * (kSideBtnR + 8.0f)) return 3;
 
   return 0;
 }
 
+bool PlayerBar::hitTestProgress(const float x, const float y) const {
+  const float x0 = progress_cx - progress_w * 0.5f;
+  return x >= x0 - 4.0f && x <= x0 + progress_w + 4.0f && std::abs(y - progress_cy) <= 8.0f;
+}
+
+bool PlayerBar::hitTestVolume(const float x, const float y) const {
+  return x >= volume_x - 4.0f && x <= volume_x + kVolWidth + 4.0f
+         && std::abs(y - volume_cy) <= 10.0f;
+}
+
+double PlayerBar::progressRatioFromPoint(const float x) const {
+  const float x0 = progress_cx - progress_w * 0.5f;
+  return progress_w > 0.0f ? std::clamp((x - x0) / progress_w, 0.0f, 1.0f) : 0.0;
+}
+
+void PlayerBar::requestSeekFromPoint(const float x) {
+  const double ratio = progressRatioFromPoint(x);
+  progress_ = static_cast<float>(ratio);
+  if (duration_seconds > 0.001) {
+    time_left.setText(formatTime(duration_seconds * ratio));
+  }
+  seekRequested.emit(ratio);
+  markLayoutDirty();
+}
+
+void PlayerBar::updateVolumeFromPoint(const float x) {
+  const float next = std::clamp((x - volume_x) / kVolWidth, 0.0f, 1.0f);
+  volume_ = next;
+  volumeChanged.emit(next);
+  markLayoutDirty();
+}
+
 void PlayerBar::onMouseMove(float x, float y) {
+  if (progress_dragging) {
+    pending_seek_ratio = progressRatioFromPoint(x);
+    return;
+  }
+  if (volume_dragging) {
+    updateVolumeFromPoint(x);
+    return;
+  }
+
   const int btn = hitTestButton(x, y);
+  const bool on_bar = btn == 0 && (hitTestProgress(x, y) || hitTestVolume(x, y));
   if (btn != hovered_btn) {
     hovered_btn = btn;
-    window()->setCursor(btn > 0 ? glfw::CursorType::Hand : glfw::CursorType::Arrow);
-    startAnimation<&PlayerBar::setBtnHoverT>(btn_hover_t, (btn == 1 || btn == 3) ? 1.0f : 0.0f, 120.0f, CubicBezier::EaseOut());
-    startAnimation<&PlayerBar::setPlayHoverT>(play_hover_t, btn == 2 ? 1.0f : 0.0f, 120.0f, CubicBezier::EaseOut());
+    startAnimation<&PlayerBar::setBtnHoverT>(btn_hover_t, (btn == 1 || btn == 3) ? 1.0f : 0.0f,
+                                             120.0f, CubicBezier::EaseOut());
+    startAnimation<&PlayerBar::setPlayHoverT>(play_hover_t, btn == 2 ? 1.0f : 0.0f, 120.0f,
+                                              CubicBezier::EaseOut());
   }
+  window()->setCursor((btn > 0 || on_bar) ? glfw::CursorType::Hand : glfw::CursorType::Arrow);
 }
 
 void PlayerBar::onMouseLeave(float, float) {
@@ -547,7 +711,20 @@ void PlayerBar::onMouseLeave(float, float) {
   startAnimation<&PlayerBar::setPlayHoverT>(play_hover_t, 0.0f, 180.0f, CubicBezier::EaseOut());
 }
 
-void PlayerBar::onMouseLeftPressed(float, float) {
+void PlayerBar::onMouseLeftPressed(float x, float y) {
+  if (hitTestProgress(x, y)) {
+    progress_dragging = true;
+    is_dragging = true;
+    pending_seek_ratio = progressRatioFromPoint(x);
+    return;
+  }
+  if (hitTestVolume(x, y)) {
+    volume_dragging = true;
+    is_dragging = true;
+    updateVolumeFromPoint(x);
+    return;
+  }
+
   if (hovered_btn == 1 || hovered_btn == 3) {
     startAnimation<&PlayerBar::setBtnPressT>(btn_press_t, 1.0f, 60.0f, CubicBezier::EaseOut());
   } else if (hovered_btn == 2) {
@@ -555,12 +732,34 @@ void PlayerBar::onMouseLeftPressed(float, float) {
   }
 }
 
-void PlayerBar::onMouseLeftReleased(float, float) {
+void PlayerBar::onMouseLeftReleased(float x, float) {
+  const int released_btn = hovered_btn;
+
+  if (progress_dragging || volume_dragging) {
+    if (progress_dragging) {
+      requestSeekFromPoint(x);
+    } else {
+      updateVolumeFromPoint(x);
+    }
+    progress_dragging = false;
+    volume_dragging = false;
+    is_dragging = false;
+    return;
+  }
+
   if (btn_press_t > 0.0f) {
     startAnimation<&PlayerBar::setBtnPressT>(btn_press_t, 0.0f, 180.0f, CubicBezier::EaseOut());
   }
   if (play_press_t > 0.0f) {
     startAnimation<&PlayerBar::setPlayPressT>(play_press_t, 0.0f, 180.0f, CubicBezier::EaseOut());
+  }
+
+  if (released_btn == 1) {
+    previousClicked.emit();
+  } else if (released_btn == 2 && !loading_) {
+    playPauseClicked.emit();
+  } else if (released_btn == 3) {
+    nextClicked.emit();
   }
 }
 
@@ -588,6 +787,30 @@ void PlayerBar::drawPlayIcon(SkCanvas *c, float cx, float cy, float sz, const Sk
   b.lineTo(SkPoint::Make(cx - sz * 0.38f, cy + sz * 0.55f));
   b.close();
   c->drawPath(b.detach(), p);
+}
+
+void PlayerBar::drawPauseIcon(SkCanvas *c, float cx, float cy, const SkPaint &p) {
+  SkPaint bar = p;
+  bar.setStyle(SkPaint::kFill_Style);
+  c->drawRoundRect(SkRect::MakeXYWH(cx - 5.4f, cy - 6.2f, 3.2f, 12.4f), 1.3f, 1.3f, bar);
+  c->drawRoundRect(SkRect::MakeXYWH(cx + 2.2f, cy - 6.2f, 3.2f, 12.4f), 1.3f, 1.3f, bar);
+}
+
+void PlayerBar::drawLoadingSpinner(SkCanvas *c, const float cx, const float cy) {
+  const float t = static_cast<float>(profiling::frame_clock.now % 1000000ULL) / 1000000.0f;
+  constexpr int kDots = 8;
+
+  for (int i = 0; i < kDots; ++i) {
+    const float phase = static_cast<float>(i) / static_cast<float>(kDots);
+    const float angle = (phase + t) * kPi * 2.0f;
+    const float alpha = 0.30f + 0.70f * phase;
+
+    SkPaint dot;
+    dot.setAntiAlias(true);
+    dot.setColor(skia_colors::white);
+    dot.setAlphaf(alpha);
+    c->drawCircle(cx + std::cos(angle) * 6.2f, cy + std::sin(angle) * 6.2f, 1.55f, dot);
+  }
 }
 
 // 下一首图标：右三角 + 竖线，整体水平居中

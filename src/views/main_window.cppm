@@ -12,6 +12,7 @@ import glfw;
 import skia;
 import std;
 import ui;
+import bass24;
 
 using namespace skia;
 using namespace glfw;
@@ -26,6 +27,7 @@ constexpr SkColor kSidebarFill = ColorFromARGB(104, 255, 255, 255);
 constexpr SkColor kGlowRose = ColorFromARGB(58, 255, 82, 132);
 constexpr SkColor kGlowCyan = ColorFromARGB(46, 38, 189, 220);
 constexpr SkColor kGlowAmber = ColorFromARGB(34, 255, 184, 84);
+constexpr std::uint64_t kPlaybackSyncIntervalUs = 100000;
 
 // 绘制带边界的柔光椭圆
 void drawBlurredOval(SkCanvas *canvas, const SkRect &rect, SkColor color, float sigma);
@@ -100,12 +102,21 @@ private:
   void onMenuClicked(const std::string &id);
   // 处理歌曲选中并显示播放栏
   void onSongSelected(const std::string &title, const std::string &artist, const std::string &duration);
+  void onPlaybackStateChanged(bool playing);
+  void onLoadingStateChanged(bool loading);
+  void onSeekRequested(double ratio);
+  void onVolumeChanged(float volume);
+  void onPreviousClicked();
+  void onPlayPauseClicked();
+  void onNextClicked();
+  void syncPlaybackState();
 
   Splitter *splitter_ = nullptr;               // 主分栏
   Box *sidebar_ = nullptr;                     // 左侧菜单面板
   PageView *page_view = nullptr;               // 页面容器
   components::PlayerBar *player_bar = nullptr; // 底部播放栏
   pages::LibraryPage *library_page = nullptr;  // 音乐库页面
+  std::uint64_t last_playback_sync_us = 0;      // 上次 BASS 状态采样时间
 
   std::unordered_map<std::string, MenuButton *> menu_buttons; // 菜单按钮集合
 
@@ -135,6 +146,11 @@ MainWindow::MainWindow() : Window(1024, 700) {
 
   player_bar = new components::PlayerBar(this);
   player_bar->setVisible(false);
+  player_bar->previousClicked.connect<&MainWindow::onPreviousClicked>(this);
+  player_bar->playPauseClicked.connect<&MainWindow::onPlayPauseClicked>(this);
+  player_bar->nextClicked.connect<&MainWindow::onNextClicked>(this);
+  player_bar->seekRequested.connect<&MainWindow::onSeekRequested>(this);
+  player_bar->volumeChanged.connect<&MainWindow::onVolumeChanged>(this);
 
   setupSidebar();
   setupPages();
@@ -195,6 +211,8 @@ void MainWindow::setupPages() {
 
   library_page = new pages::LibraryPage(page_view);
   library_page->songSelected.connect<&MainWindow::onSongSelected>(this);
+  library_page->playbackStateChanged.connect<&MainWindow::onPlaybackStateChanged>(this);
+  library_page->loadingStateChanged.connect<&MainWindow::onLoadingStateChanged>(this);
   page_view->addPage("library", library_page);
 
   page_view->addPage("favorites", new pages::FavoritesPage(page_view));
@@ -207,6 +225,59 @@ void MainWindow::onSongSelected(const std::string &title, const std::string &art
   player_bar->show();
 }
 
+void MainWindow::onPlaybackStateChanged(const bool playing) {
+  player_bar->setPlaying(playing);
+}
+
+void MainWindow::onLoadingStateChanged(const bool loading) {
+  player_bar->setLoading(loading);
+}
+
+void MainWindow::onSeekRequested(const double ratio) {
+  bass24::player().seekRatio(ratio);
+}
+
+void MainWindow::onVolumeChanged(const float volume) {
+  bass24::player().setVolume(volume);
+}
+
+void MainWindow::onPreviousClicked() {
+  if (library_page != nullptr) {
+    library_page->playPrevious();
+  }
+}
+
+void MainWindow::onPlayPauseClicked() {
+  if (bass24::player().togglePause()) {
+    player_bar->setPlaying(bass24::player().playing());
+  }
+}
+
+void MainWindow::onNextClicked() {
+  if (library_page != nullptr) {
+    library_page->playNext();
+  }
+}
+
+void MainWindow::syncPlaybackState() {
+  if (player_bar == nullptr || !player_bar->showing()) {
+    return;
+  }
+
+  const auto now = profiling::frame_clock.now;
+  if (last_playback_sync_us != 0 && now - last_playback_sync_us < kPlaybackSyncIntervalUs) {
+    return;
+  }
+  last_playback_sync_us = now;
+
+  const auto state = bass24::player().state();
+  player_bar->setVolume(state.volume);
+  player_bar->setPlaying(state.playing);
+  if (state.has_stream) {
+    player_bar->setPlaybackPosition(state.position_seconds, state.duration_seconds);
+  }
+}
+
 void MainWindow::onMenuClicked(const std::string &id) {
   page_view->showPage(id);
 
@@ -216,6 +287,8 @@ void MainWindow::onMenuClicked(const std::string &id) {
 }
 
 void MainWindow::render(SkCanvas *canvas) {
+  syncPlaybackState();
+
   canvas->clear(kWindowBg);
 
   const float w = contentWidth();

@@ -10,6 +10,7 @@ import components;
 import thread_pool;
 import qq_music_api;
 import core;
+import bass24;
 
 using namespace ui::layout;
 using namespace ui::widgets;
@@ -20,12 +21,13 @@ using namespace components;
 export namespace pages {
 
 class LibraryPage : public Widget {
-
 public:
   // 创建音乐库页面
   explicit LibraryPage(Widget *parent = nullptr);
   // 绘制音乐库背景
   void paint(SkCanvas *canvas) override;
+  void playPrevious();
+  void playNext();
 
 private:
   // 检查是否需要加载更多
@@ -39,7 +41,7 @@ private:
   // 格式化歌曲时长（秒 -> m:ss）
   static std::string formatDuration(int seconds);
   // 拼接歌手名
-  static std::string formatSingers(const std::vector<SingerType>& singers);
+  static std::string formatSingers(const std::vector<SingerType> &singers);
   // 生成可写入文件系统的文件名
   static std::string sanitizeFileName(std::string name);
 
@@ -52,21 +54,33 @@ private:
     bool has_mp3_320{};
     bool has_mp3_128{};
   };
+  // 生成歌曲缓存文件名主体
+  static std::string makeFileStem(const SongDownloadInfo &song);
   // 按音质从高到低生成候选格式
-  static std::vector<qqmusic_api::song::SongFileFormat> preferredFormats(const SongDownloadInfo &song);
+  static std::vector<qqmusic_api::song::SongFileFormat>
+  preferredFormats(const SongDownloadInfo &song);
+  // 获取已存在的本地缓存文件
+  static std::filesystem::path existingSongPath(const SongDownloadInfo &song);
+  // 当前选中的歌曲是否仍然是指定 mid
+  bool isSelectedMid(std::string_view mid);
 
-  SongItem *selected_item{}; // 被选中的item
-  ScrollArea *items_{};      // 歌曲列表
-  std::uint64_t tid_{};      // 当前歌单 ID
-  int offset_{0};            // 当前加载偏移
-  bool loading_{false};      // 是否正在加载
-  bool has_more{true};       // 是否还有更多数据
+  SongItem *selected_item{};                                               // 被选中的item
+  ScrollArea *items_{};                                                    // 歌曲列表
+  std::vector<SongItem *> song_items{};                                    // 按列表顺序保存歌曲项
+  std::uint64_t tid_{};                                                    // 当前歌单 ID
+  int offset_{ 0 };                                                        // 当前加载偏移
+  bool loading_{ false };                                                  // 是否正在加载
+  bool has_more{ true };                                                   // 是否还有更多数据
   std::unordered_map<const SongItem *, SongDownloadInfo> song_downloads{}; // 歌曲下载信息
   std::unordered_set<std::string> downloading_mids{};                      // 正在下载的歌曲 mid
   std::mutex download_mutex{};                                             // 下载状态锁
+  std::string selected_mid{};                                              // 当前选中的歌曲 mid
+  std::mutex selected_mutex{};                                             // 当前选中状态锁
 
 public:
   Signal<std::string, std::string, std::string> songSelected{}; // 歌曲选中信号
+  Signal<bool> playbackStateChanged{};                          // 播放状态变化信号
+  Signal<bool> loadingStateChanged{};                           // 当前歌曲加载状态变化信号
 };
 
 LibraryPage::LibraryPage(Widget *parent) : Widget(parent) {
@@ -100,19 +114,25 @@ LibraryPage::LibraryPage(Widget *parent) : Widget(parent) {
         const auto res = qqmusic_api::playlist::get_user_playlists_detail(tid_, 0, 30).req_1.data;
         int index = 0;
         for (auto &music : res.songlist) {
-          SongInfo info{std::string(music.title), formatSingers(music.singer), formatDuration(music.interval)};
+          SongInfo info{ std::string(music.title), formatSingers(music.singer),
+                         formatDuration(music.interval) };
           const auto title = info.title;
           const auto artist = info.artist;
           auto *item = new SongItem(index++, std::move(info), false, items_);
-          song_downloads.emplace(item, SongDownloadInfo{
-            std::string(music.mid),
-            title,
-            artist,
-            music.file.size_flac > 0,
-            music.file.size_ape > 0,
-            music.file.size_320mp3 > 0,
-            music.file.size_128mp3 > 0,
-          });
+          song_items.push_back(item);
+          // clang-format off
+          song_downloads.emplace(item,
+            SongDownloadInfo{
+               std::string(music.mid),
+               title,
+               artist,
+               music.file.size_flac > 0,
+               music.file.size_ape > 0,
+               music.file.size_320mp3 > 0,
+               music.file.size_128mp3 > 0,
+            }
+          );
+          // clang-format on
           item->doubleClicked.connect<&LibraryPage::onSongDoubleClicked>(this);
         }
         offset_ += res.songlist.size();
@@ -136,16 +156,47 @@ void LibraryPage::paint(SkCanvas *canvas) {
   canvas->drawRect(SkRect::MakeXYWH(0.0f, 0.0f, width_, 92.0f), topLight);
 }
 
+void LibraryPage::playPrevious() {
+  if (song_items.empty()) return;
+
+  const auto it = std::ranges::find(song_items, selected_item);
+  if (it == song_items.end() || it == song_items.begin()) {
+    return;
+  }
+
+  onSongDoubleClicked(*std::prev(it));
+}
+
+void LibraryPage::playNext() {
+  if (song_items.empty()) return;
+
+  const auto it = std::ranges::find(song_items, selected_item);
+  if (it == song_items.end()) {
+    onSongDoubleClicked(song_items.front());
+    return;
+  }
+
+  const auto next = std::next(it);
+  if (next == song_items.end()) {
+    if (has_more && !loading_) {
+      loadMore();
+    }
+    return;
+  }
+
+  onSongDoubleClicked(*next);
+}
+
 // 格式化歌曲时长（秒 -> m:ss）
 std::string LibraryPage::formatDuration(const int seconds) {
   char buf[8];
   auto [ptr, ec] = std::format_to_n(buf, sizeof(buf) - 1, "{}:{:02}", seconds / 60, seconds % 60);
   *ptr = '\0';
-  return {buf, static_cast<std::size_t>(ptr - buf)};
+  return { buf, static_cast<std::size_t>(ptr - buf) };
 }
 
 // 拼接歌手名
-std::string LibraryPage::formatSingers(const std::vector<SingerType>& singers) {
+std::string LibraryPage::formatSingers(const std::vector<SingerType> &singers) {
   if (singers.empty()) return {};
   if (singers.size() == 1) return singers[0].name;
 
@@ -180,16 +231,20 @@ std::string LibraryPage::sanitizeFileName(std::string name) {
   return name;
 }
 
-std::vector<qqmusic_api::song::SongFileFormat> LibraryPage::preferredFormats(const SongDownloadInfo &song) {
+std::string LibraryPage::makeFileStem(const SongDownloadInfo &song) {
+  auto file_stem = song.title;
+  if (!song.artist.empty()) {
+    file_stem += " - ";
+    file_stem += song.artist;
+  }
+  return sanitizeFileName(std::move(file_stem));
+}
+
+std::vector<qqmusic_api::song::SongFileFormat>
+LibraryPage::preferredFormats(const SongDownloadInfo &song) {
   std::vector<qqmusic_api::song::SongFileFormat> formats;
   formats.reserve(5);
 
-  if (song.has_flac) {
-    formats.push_back(qqmusic_api::song::flac_format);
-  }
-  if (song.has_ape) {
-    formats.push_back(qqmusic_api::song::ape_format);
-  }
   if (song.has_mp3_320) {
     formats.push_back(qqmusic_api::song::mp3_320_format);
   }
@@ -197,17 +252,49 @@ std::vector<qqmusic_api::song::SongFileFormat> LibraryPage::preferredFormats(con
     formats.push_back(qqmusic_api::song::mp3_128_format);
   }
   formats.push_back(qqmusic_api::song::m4a_format);
+  if (song.has_flac) {
+    formats.push_back(qqmusic_api::song::flac_format);
+  }
+  if (song.has_ape) {
+    formats.push_back(qqmusic_api::song::ape_format);
+  }
 
   return formats;
+}
+
+std::filesystem::path LibraryPage::existingSongPath(const SongDownloadInfo &song) {
+  const auto dir = std::filesystem::path("musics");
+  const auto safe_file_stem = makeFileStem(song);
+  std::error_code ec;
+
+  for (const auto &format : preferredFormats(song)) {
+    const auto path = dir / std::format("{}.{}", safe_file_stem, format.e);
+    if (std::filesystem::exists(path, ec) && !ec) {
+      return path;
+    }
+  }
+
+  return {};
+}
+
+bool LibraryPage::isSelectedMid(const std::string_view mid) {
+  std::lock_guard lock(selected_mutex);
+  return selected_mid == mid;
 }
 
 // 歌曲双击处理：查找选中项并发射信号
 void LibraryPage::onSongDoubleClicked(SongItem *item) {
   item->setSelected(true);
-  if (selected_item != nullptr) {
+  if (selected_item != nullptr && selected_item != item) {
     selected_item->setSelected(false);
   }
   selected_item = item;
+
+  if (const auto info_it = song_downloads.find(item); info_it != song_downloads.end()) {
+    std::lock_guard lock(selected_mutex);
+    selected_mid = info_it->second.mid;
+  }
+
   const auto &[title, artist, duration] = selected_item->info();
   songSelected.emit(title, artist, duration);
   downloadSong(item);
@@ -221,18 +308,37 @@ void LibraryPage::downloadSong(const SongItem *item) {
   }
 
   const SongDownloadInfo song = info_it->second;
+  if (const auto path = existingSongPath(song); !path.empty()) {
+    yuri::info("使用本地音乐缓存播放: {}", path.string());
+    loadingStateChanged.emit(false);
+    if (bass24::player().play(path)) {
+      playbackStateChanged.emit(true);
+    }
+    return;
+  }
+
+  bass24::player().stop();
+  playbackStateChanged.emit(false);
+
   {
     std::lock_guard lock(download_mutex);
     if (downloading_mids.contains(song.mid)) {
+      loadingStateChanged.emit(true);
       return;
     }
     downloading_mids.insert(song.mid);
   }
 
+  loadingStateChanged.emit(true);
   thread_manager->addTask([this, song] {
     const auto cleanup = [this, mid = song.mid] {
-      std::lock_guard lock(download_mutex);
-      downloading_mids.erase(mid);
+      {
+        std::lock_guard lock(download_mutex);
+        downloading_mids.erase(mid);
+      }
+      if (isSelectedMid(mid)) {
+        loadingStateChanged.emit(false);
+      }
     };
 
     try {
@@ -245,20 +351,17 @@ void LibraryPage::downloadSong(const SongItem *item) {
         return;
       }
 
-      auto file_stem = song.title;
-      if (!song.artist.empty()) {
-        file_stem += " - ";
-        file_stem += song.artist;
-      }
-
-      const auto safe_file_stem = sanitizeFileName(std::move(file_stem));
+      const auto safe_file_stem = makeFileStem(song);
       std::string url;
       qqmusic_api::song::SongFileFormat selected_format = qqmusic_api::song::m4a_format;
       std::filesystem::path selected_path;
       for (const auto &format : preferredFormats(song)) {
         const auto path = dir / std::format("{}.{}", safe_file_stem, format.e);
         if (std::filesystem::exists(path, ec) && !ec) {
-          yuri::info("歌曲已存在，跳过下载: {}", path.string());
+          yuri::info("歌曲已存在，直接播放: {}", path.string());
+          if (bass24::player().play(path)) {
+            playbackStateChanged.emit(true);
+          }
           cleanup();
           return;
         }
@@ -278,9 +381,10 @@ void LibraryPage::downloadSong(const SongItem *item) {
       }
 
       const curl::KeyValueList headers = {
-        {"referer", "https://y.qq.com/"},
-        {"cookie", qqmusic_api_config.cookie},
-        {"user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"},
+        { "referer", "https://y.qq.com/" },
+        { "cookie", qqmusic_api_config.cookie },
+        { "user-agent",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36" },
       };
       const auto data = curl::get(url, headers);
       if (!data) {
@@ -298,6 +402,18 @@ void LibraryPage::downloadSong(const SongItem *item) {
 
       output.write(data->data(), static_cast<std::streamsize>(data->size()));
       yuri::info("歌曲下载完成: {}", selected_path.string());
+
+      bool should_play = false;
+      {
+        std::lock_guard lock(selected_mutex);
+        should_play = selected_mid == song.mid;
+      }
+      if (should_play) {
+        if (bass24::player().play(selected_path)) {
+          playbackStateChanged.emit(true);
+          yuri::info("播放: {}", selected_path.string());
+        }
+      }
     } catch (const std::exception &e) {
       yuri::error("下载歌曲异常: {}", e.what());
     }
@@ -314,7 +430,8 @@ void LibraryPage::checkLoadMore(const float scrollOffset) {
   if (n == 0) return;
 
   constexpr float kSongItemHeight = 52.0f;
-  const int bottom_index = static_cast<int>((scrollOffset + items_->contentHeight()) / kSongItemHeight);
+  const int bottom_index =
+    static_cast<int>((scrollOffset + items_->contentHeight()) / kSongItemHeight);
 
   if (n - bottom_index <= 5) {
     loadMore();
@@ -326,7 +443,8 @@ void LibraryPage::loadMore() {
   loading_ = true;
   const int current_offset = offset_;
   thread_manager->addTask([this, current_offset] {
-    const auto res = qqmusic_api::playlist::get_user_playlists_detail(tid_, current_offset, 30).req_1.data;
+    const auto res =
+      qqmusic_api::playlist::get_user_playlists_detail(tid_, current_offset, 30).req_1.data;
     if (res.songlist.empty()) {
       has_more = false;
       loading_ = false;
@@ -335,19 +453,21 @@ void LibraryPage::loadMore() {
 
     int index = current_offset;
     for (auto &music : res.songlist) {
-      SongInfo info{std::string(music.title), formatSingers(music.singer), formatDuration(music.interval)};
+      SongInfo info{ std::string(music.title), formatSingers(music.singer),
+                     formatDuration(music.interval) };
       const auto title = info.title;
       const auto artist = info.artist;
       auto *item = new SongItem(index++, std::move(info), false, items_);
+      song_items.push_back(item);
       song_downloads.emplace(item, SongDownloadInfo{
-        std::string(music.mid),
-        title,
-        artist,
-        music.file.size_flac > 0,
-        music.file.size_ape > 0,
-        music.file.size_320mp3 > 0,
-        music.file.size_128mp3 > 0,
-      });
+                                     std::string(music.mid),
+                                     title,
+                                     artist,
+                                     music.file.size_flac > 0,
+                                     music.file.size_ape > 0,
+                                     music.file.size_320mp3 > 0,
+                                     music.file.size_128mp3 > 0,
+                                   });
       item->doubleClicked.connect<&LibraryPage::onSongDoubleClicked>(this);
     }
 
