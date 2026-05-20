@@ -1,0 +1,8 @@
+.idea/
+build/
+*-build-*/
+*.user
+.vs/
+.cache/
+.claude/
+libs/bass24
