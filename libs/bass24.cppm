@@ -16,13 +16,15 @@ struct PlaybackState {
   bool playing{};
   double position_seconds{};
   double duration_seconds{};
-  float volume{1.0f};
+  float volume{ 1.0f };
 };
 
 class BassPlayer {
 public:
   BassPlayer() = default;
-  ~BassPlayer() { shutdown(); }
+  ~BassPlayer() {
+    shutdown();
+  }
 
   BassPlayer(const BassPlayer &) = delete;
   BassPlayer &operator=(const BassPlayer &) = delete;
@@ -43,7 +45,8 @@ public:
 
 #ifdef _WIN32
     const auto native_path = path.wstring();
-    stream_ = BASS_StreamCreateFile(FALSE, native_path.c_str(), 0, 0, BASS_ASYNCFILE | BASS_UNICODE);
+    stream_ =
+      BASS_StreamCreateFile(FALSE, native_path.c_str(), 0, 0, BASS_ASYNCFILE | BASS_UNICODE);
 #else
     const auto native_path = path.string();
     stream_ = BASS_StreamCreateFile(FALSE, native_path.c_str(), 0, 0, BASS_ASYNCFILE);
@@ -54,10 +57,10 @@ public:
     }
 
     BASS_ChannelSetAttribute(stream_, BASS_ATTRIB_VOL, volume_);
-    duration_seconds_ = 0.0;
+    duration_seconds = 0.0;
     const auto len = BASS_ChannelGetLength(stream_, BASS_POS_BYTE);
     if (len != static_cast<QWORD>(-1)) {
-      duration_seconds_ = BASS_ChannelBytes2Seconds(stream_, len);
+      duration_seconds = BASS_ChannelBytes2Seconds(stream_, len);
     }
 
     if (!BASS_ChannelPlay(stream_, TRUE)) {
@@ -66,7 +69,7 @@ public:
       return false;
     }
 
-    current_path_ = path;
+    current_path = path;
     yuri::info("开始播放: {}", path.string());
     return true;
   }
@@ -74,7 +77,7 @@ public:
   void stop() {
     std::lock_guard lock(mutex_);
     releaseStream();
-    current_path_.clear();
+    current_path.clear();
   }
 
   bool pause() {
@@ -162,7 +165,7 @@ public:
       result.position_seconds = BASS_ChannelBytes2Seconds(stream_, pos);
     }
 
-    result.duration_seconds = duration_seconds_;
+    result.duration_seconds = duration_seconds;
 
     return result;
   }
@@ -180,6 +183,10 @@ public:
     std::lock_guard lock(mutex_);
     releaseStream();
     if (initialized_) {
+      if (flac_plugin != 0) {
+        BASS_PluginFree(flac_plugin);
+        flac_plugin = 0;
+      }
       BASS_Free();
       initialized_ = false;
     }
@@ -196,7 +203,25 @@ private:
       return false;
     }
 
+    if (!loadFlacPlugin()) {
+      BASS_Free();
+      return false;
+    }
+
     initialized_ = true;
+    return true;
+  }
+
+  bool loadFlacPlugin() {
+#ifdef _WIN32
+    flac_plugin = BASS_PluginLoad(L"bassflac.dll", BASS_UNICODE);
+#else
+    flac_plugin = BASS_PluginLoad("libbassflac.so", 0);
+#endif
+    if (flac_plugin == 0) {
+      yuri::error("BASSFLAC 插件加载失败: error={}", BASS_ErrorGetCode());
+      return false;
+    }
     return true;
   }
 
@@ -206,15 +231,16 @@ private:
       BASS_StreamFree(stream_);
       stream_ = 0;
     }
-    duration_seconds_ = 0.0;
+    duration_seconds = 0.0;
   }
 
   mutable std::mutex mutex_{};
   HSTREAM stream_{};
-  bool initialized_{false};
-  float volume_{1.0f};
-  double duration_seconds_{0.0};
-  std::filesystem::path current_path_{};
+  HPLUGIN flac_plugin{};
+  bool initialized_{ false };
+  float volume_{ 1.0f };
+  double duration_seconds{ 0.0 };
+  std::filesystem::path current_path{};
 };
 
 BassPlayer &player() {
