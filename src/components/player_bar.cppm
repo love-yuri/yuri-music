@@ -20,6 +20,8 @@ constexpr SkColor kBarBg = ColorFromARGB(186, 255, 255, 255);
 constexpr SkColor kBarBorder = ColorFromARGB(126, 255, 255, 255);
 constexpr SkColor kBarTopLine = ColorFromARGB(52, 42, 52, 68);
 constexpr SkColor kAccent = ColorFromARGB(255, 218, 52, 92);
+constexpr SkColor kAccentHot = ColorFromARGB(255, 255, 76, 119);
+constexpr SkColor kInk = ColorFromARGB(255, 17, 24, 36);
 constexpr SkColor kProgressTrack = ColorFromARGB(54, 54, 65, 82);
 constexpr SkColor kProgressFill = ColorFromARGB(236, 218, 52, 92);
 constexpr SkColor kProgressThumb = ColorFromARGB(255, 218, 52, 92);
@@ -38,9 +40,11 @@ static constexpr float kPadH = 30.0f;
 static constexpr float kCoverSize = 44.0f;
 static constexpr float kCoverRadius = 12.0f;
 static constexpr float kPlayBtnR = 13.0f;
-static constexpr float kPlayBtnBgR = kPlayBtnR + 7.0f;
+static constexpr float kPlayBtnBgR = kPlayBtnR + 9.0f;
 static constexpr float kSideBtnR = 12.0f;
-static constexpr float kCtrlGap = 20.0f;
+static constexpr float kCtrlGap = 23.0f;
+static constexpr float kControlIslandH = 38.0f;
+static constexpr float kControlOffsetY = 3.0f;
 static constexpr float kVolWidth = 80.0f;
 static constexpr float kVolTrackH = 3.0f;
 static constexpr float kVolDotR = 6.0f;
@@ -93,6 +97,8 @@ private:
   void setTextAlphaT(float t) noexcept { text_alpha = t; }
 
   [[nodiscard]] int hitTestButton(float x, float y) const;
+  void drawControlIsland(SkCanvas *c);
+  void drawSideButtonHalo(SkCanvas *c, float cx, float cy, bool active);
   void drawPrevIcon(SkCanvas *c, float cx, float cy, const SkPaint &p);
   void drawPlayIcon(SkCanvas *c, float cx, float cy, float sz, const SkPaint &p);
   void drawNextIcon(SkCanvas *c, float cx, float cy, const SkPaint &p);
@@ -212,7 +218,7 @@ void PlayerBar::layoutChildren() {
   const float total_h = btn_row_h + kRowGap + prog_row_h;
   const float block_y = (h - total_h) * 0.5f;
 
-  btn_cy = block_y + btn_row_h * 0.5f;
+  btn_cy = block_y + btn_row_h * 0.5f + kControlOffsetY;
   btn_prev_cx = ctrl_cx - (kPlayBtnR + kSideBtnR + kCtrlGap);
   btn_play_cx = ctrl_cx;
   btn_next_cx = ctrl_cx + (kPlayBtnR + kSideBtnR + kCtrlGap);
@@ -339,6 +345,8 @@ void PlayerBar::paint(SkCanvas *canvas) {
   time_right.render(canvas);
 
   // ─── 控制按钮 ───
+  drawControlIsland(canvas);
+
   SkPaint btn;
   btn.setAntiAlias(true);
 
@@ -351,7 +359,8 @@ void PlayerBar::paint(SkCanvas *canvas) {
     canvas->scale(s, s);
     canvas->translate(-btn_prev_cx, -btn_cy);
     btn.setStyle(SkPaint::kFill_Style);
-    btn.setColor(hovered_btn == 1 ? kAccent : kTextSecondary);
+    btn.setColor(hovered_btn == 1 ? kInk : kTextSecondary);
+    drawSideButtonHalo(canvas, btn_prev_cx, btn_cy, hovered_btn == 1);
     drawPrevIcon(canvas, btn_prev_cx, btn_cy, btn);
     canvas->restore();
   }
@@ -366,8 +375,13 @@ void PlayerBar::paint(SkCanvas *canvas) {
 
     SkPaint playBg;
     playBg.setAntiAlias(true);
-    playBg.setColor(lerp(kAccent, ColorFromARGB(255, 236, 64, 106), play_hover_t));
-    canvas->drawCircle(btn_play_cx, btn_cy, kPlayBtnBgR + play_hover_t * 1.5f, playBg);
+    playBg.setColor(lerp(kAccent, kAccentHot, play_hover_t));
+    canvas->drawCircle(btn_play_cx, btn_cy, kPlayBtnBgR + play_hover_t * 0.8f, playBg);
+
+    SkPaint playShine;
+    playShine.setAntiAlias(true);
+    playShine.setColor(ColorFromARGB(static_cast<U8CPU>(22.0f + play_hover_t * 14.0f), 255, 255, 255));
+    canvas->drawCircle(btn_play_cx - 5.0f, btn_cy - 5.5f, 4.0f, playShine);
 
     btn.setColor(skia_colors::white);
     btn.setAlphaf(lerp(0.92f, 1.0f, play_hover_t));
@@ -382,7 +396,8 @@ void PlayerBar::paint(SkCanvas *canvas) {
     canvas->translate(btn_next_cx, btn_cy);
     canvas->scale(s, s);
     canvas->translate(-btn_next_cx, -btn_cy);
-    btn.setColor(hovered_btn == 3 ? kAccent : kTextSecondary);
+    btn.setColor(hovered_btn == 3 ? kInk : kTextSecondary);
+    drawSideButtonHalo(canvas, btn_next_cx, btn_cy, hovered_btn == 3);
     drawNextIcon(canvas, btn_next_cx, btn_cy, btn);
     canvas->restore();
   }
@@ -394,6 +409,62 @@ void PlayerBar::paint(SkCanvas *canvas) {
   const float vol_x = w - kPadH - kVolWidth;
   drawSpeaker(canvas, vol_x - kVolIconW - 4.0f, h * 0.5f, btn);
   drawVolumeBar(canvas, vol_x, h * 0.5f, kVolWidth);
+}
+
+void PlayerBar::drawControlIsland(SkCanvas *c) {
+  const auto island = SkRect::MakeXYWH(btn_prev_cx - 32.0f, btn_cy - kControlIslandH * 0.5f,
+                                      btn_next_cx - btn_prev_cx + 64.0f, kControlIslandH);
+  const float island_r = kControlIslandH * 0.5f;
+
+  SkPaint shadow_layer;
+  shadow_layer.setImageFilter(SkImageFilters::Blur(10.0f, 10.0f, nullptr));
+  SkPaint shadow;
+  shadow.setAntiAlias(true);
+  shadow.setColor(ColorFromARGB(24, 24, 31, 42));
+  auto shadow_rect = island.makeOffset(0.0f, 6.0f).makeInset(6.0f, 6.0f);
+  auto bounds = shadow_rect.makeOutset(30.0f, 30.0f);
+  c->saveLayer(&bounds, &shadow_layer);
+  c->drawRoundRect(shadow_rect, island_r - 4.0f, island_r - 4.0f, shadow);
+  c->restore();
+
+  SkPaint fill;
+  fill.setAntiAlias(true);
+  fill.setColor(ColorFromARGB(148, 255, 255, 255));
+  c->drawRoundRect(island, island_r, island_r, fill);
+
+  SkPaint tint;
+  tint.setAntiAlias(true);
+  tint.setColor(ColorFromARGB(static_cast<U8CPU>(14.0f + play_hover_t * 8.0f), 255, 76, 119));
+  c->drawCircle(btn_play_cx, btn_cy, 24.0f + play_hover_t * 1.0f, tint);
+
+  SkPaint halo;
+  halo.setAntiAlias(true);
+  halo.setColor(ColorFromARGB(static_cast<U8CPU>(15.0f + play_hover_t * 9.0f), 218, 52, 92));
+  c->drawCircle(btn_play_cx, btn_cy, kPlayBtnBgR + 2.0f + play_hover_t * 1.0f, halo);
+
+  SkPaint border;
+  border.setAntiAlias(true);
+  border.setStyle(SkPaint::kStroke_Style);
+  border.setStrokeWidth(1.0f);
+  border.setColor(ColorFromARGB(142, 255, 255, 255));
+  c->drawRoundRect(island.makeInset(0.5f, 0.5f), island_r - 0.5f, island_r - 0.5f, border);
+}
+
+void PlayerBar::drawSideButtonHalo(SkCanvas *c, const float cx, const float cy, const bool active) {
+  const float t = active ? btn_hover_t : 0.0f;
+  if (t <= 0.01f) return;
+
+  SkPaint halo;
+  halo.setAntiAlias(true);
+  halo.setColor(ColorFromARGB(static_cast<U8CPU>(34.0f + t * 32.0f), 255, 255, 255));
+  c->drawCircle(cx, cy, 18.0f + t * 1.5f, halo);
+
+  SkPaint rim;
+  rim.setAntiAlias(true);
+  rim.setStyle(SkPaint::kStroke_Style);
+  rim.setStrokeWidth(1.0f);
+  rim.setColor(ColorFromARGB(static_cast<U8CPU>(42.0f * t), 218, 52, 92));
+  c->drawCircle(cx, cy, 18.0f, rim);
 }
 
 // ─── 进度条 ───
@@ -448,13 +519,13 @@ int PlayerBar::hitTestButton(float x, float y) const {
   float dx, dy;
 
   dx = x - btn_prev_cx; dy = y - btn_cy;
-  if (dx * dx + dy * dy < kSideBtnR * kSideBtnR) return 1;
+  if (dx * dx + dy * dy < (kSideBtnR + 8.0f) * (kSideBtnR + 8.0f)) return 1;
 
   dx = x - btn_play_cx; dy = y - btn_cy;
-  if (dx * dx + dy * dy < kPlayBtnR * kPlayBtnR) return 2;
+  if (dx * dx + dy * dy < kPlayBtnBgR * kPlayBtnBgR) return 2;
 
   dx = x - btn_next_cx; dy = y - btn_cy;
-  if (dx * dx + dy * dy < kSideBtnR * kSideBtnR) return 3;
+  if (dx * dx + dy * dy < (kSideBtnR + 8.0f) * (kSideBtnR + 8.0f)) return 3;
 
   return 0;
 }
