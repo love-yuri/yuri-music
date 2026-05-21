@@ -128,6 +128,7 @@ private:
   void requestSeekFromPoint(float x);
   void updateVolumeFromPoint(float x);
   static std::string formatTime(double seconds);
+  static int parseTimeText(std::string_view text);
   void drawControlIsland(SkCanvas *c);
   void drawSideButtonHalo(SkCanvas *c, float cx, float cy, bool active);
   void drawPrevIcon(SkCanvas *c, float cx, float cy, const SkPaint &p);
@@ -237,9 +238,9 @@ void PlayerBar::updateSong(std::string_view title,
   time_right.setText(duration);
   time_left.setText("0:00");
   progress_ = 0.0f;
-  duration_seconds = 0.0;
+  duration_display_second = parseTimeText(duration);
+  duration_seconds = static_cast<double>(std::max(0, duration_display_second));
   elapsed_display_seconds = 0;
-  duration_display_second = -1;
   startAnimation<&PlayerBar::setTextAlphaT>(text_alpha, 1.0f, 250.0f, CubicBezier::EaseOut());
   markLayoutDirty();
 }
@@ -259,10 +260,11 @@ void PlayerBar::setLoading(const bool value) noexcept {
 void PlayerBar::setPlaybackPosition(const double position_seconds, double duration_seconds) {
   const double safe_position = std::max(0.0, position_seconds);
   const double safe_duration = std::max(0.0, duration_seconds);
+  const double effective_duration = safe_duration > 0.001 ? safe_duration : this->duration_seconds;
   const float next_progress =
-    safe_duration > 0.001 ?
-      static_cast<float>(std::clamp(safe_position / safe_duration, 0.0, 1.0)) :
-      0.0f;
+    effective_duration > 0.001 ?
+      static_cast<float>(std::clamp(safe_position / effective_duration, 0.0, 1.0)) :
+      progress_;
 
   bool changed = std::abs(progress_ - next_progress) > 0.001f;
   progress_ = next_progress;
@@ -299,6 +301,28 @@ void PlayerBar::setVolume(const float value) noexcept {
 std::string PlayerBar::formatTime(const double seconds) {
   const auto total = static_cast<int>(seconds);
   return std::format("{}:{:02}", total / 60, total % 60);
+}
+
+int PlayerBar::parseTimeText(const std::string_view text) {
+  const auto colon = text.find(':');
+  if (colon == std::string_view::npos) {
+    return -1;
+  }
+
+  int minutes = 0;
+  int seconds = 0;
+  const auto min_text = text.substr(0, colon);
+  const auto sec_text = text.substr(colon + 1);
+  const auto [min_ptr, min_ec] =
+    std::from_chars(min_text.data(), min_text.data() + min_text.size(), minutes);
+  const auto [sec_ptr, sec_ec] =
+    std::from_chars(sec_text.data(), sec_text.data() + sec_text.size(), seconds);
+  if (min_ec != std::errc{} || sec_ec != std::errc{}
+      || min_ptr != min_text.data() + min_text.size()
+      || sec_ptr != sec_text.data() + sec_text.size()) {
+    return -1;
+  }
+  return minutes * 60 + seconds;
 }
 
 void PlayerBar::layoutChildren() {
