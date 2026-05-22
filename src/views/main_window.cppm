@@ -13,14 +13,13 @@ import skia;
 import std;
 import ui;
 import bass24;
+import models;
 
 using namespace skia;
 using namespace glfw;
 using namespace ui::widgets;
 using namespace ui::layout;
 using namespace ui::render;
-
-namespace {
 
 constexpr SkColor kWindowBg = ColorFromARGB(255, 238, 243, 249);
 constexpr SkColor kSidebarFill = ColorFromARGB(104, 255, 255, 255);
@@ -80,8 +79,6 @@ void MusicSplitter::paint(SkCanvas *) {
   // 保留拖拽命中区域，视觉上不绘制桌面分隔线
 }
 
-} // namespace
-
 export class MainWindow : public Window {
   using Window::Window;
 
@@ -101,14 +98,14 @@ private:
   // 处理菜单点击切页
   void onMenuClicked(const std::string &id);
   // 处理歌曲选中并显示播放栏
-  void onSongSelected(const std::string &title, const std::string &artist, const std::string &duration);
-  void onPlaybackStateChanged(bool playing);
-  void onLoadingStateChanged(bool loading);
+  void onSongSelected(const SongInfo& info) const;
+  void onPlaybackStateChanged(bool playing) const;
+  void onLoadingStateChanged(bool loading) const;
   void onSeekRequested(double ratio);
   void onVolumeChanged(float volume);
-  void onPreviousClicked();
-  void onPlayPauseClicked();
-  void onNextClicked();
+  void onPreviousClicked() const;
+  void onPlayPauseClicked() const;
+  void onNextClicked() const;
   void syncPlaybackState();
 
   Splitter *splitter_ = nullptr;               // 主分栏
@@ -220,16 +217,16 @@ void MainWindow::setupPages() {
   page_view->addPage("settings", new pages::SettingsPage(page_view));
 }
 
-void MainWindow::onSongSelected(const std::string &title, const std::string &artist, const std::string &duration) {
-  player_bar->updateSong(title, artist, duration);
+void MainWindow::onSongSelected(const SongInfo& info) const {
+  player_bar->updateSong(info);
   player_bar->show();
 }
 
-void MainWindow::onPlaybackStateChanged(const bool playing) {
+void MainWindow::onPlaybackStateChanged(const bool playing) const {
   player_bar->setPlaying(playing);
 }
 
-void MainWindow::onLoadingStateChanged(const bool loading) {
+void MainWindow::onLoadingStateChanged(const bool loading) const {
   player_bar->setLoading(loading);
 }
 
@@ -241,19 +238,19 @@ void MainWindow::onVolumeChanged(const float volume) {
   bass24::player().setVolume(volume);
 }
 
-void MainWindow::onPreviousClicked() {
+void MainWindow::onPreviousClicked() const {
   if (library_page != nullptr) {
     library_page->playPrevious();
   }
 }
 
-void MainWindow::onPlayPauseClicked() {
+void MainWindow::onPlayPauseClicked() const {
   if (bass24::player().togglePause()) {
     player_bar->setPlaying(bass24::player().playing());
   }
 }
 
-void MainWindow::onNextClicked() {
+void MainWindow::onNextClicked() const {
   if (library_page != nullptr) {
     library_page->playNext();
   }

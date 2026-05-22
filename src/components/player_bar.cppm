@@ -7,6 +7,9 @@ import std;
 import ui;
 import skia;
 import core;
+import qq_music_api;
+import thread_pool;
+import models;
 
 using namespace ui::render;
 using namespace ui::layout;
@@ -32,11 +35,10 @@ constexpr SkColor kVolFill = ColorFromARGB(188, 54, 65, 82);
 constexpr SkColor kVolThumb = ColorFromARGB(255, 82, 94, 112);
 
 // ─── 布局常量 ───
-
 static constexpr float kBarHeight = 78.0f;
 static constexpr float kPadH = 30.0f;
 static constexpr float kCoverSize = 44.0f;
-static constexpr float kCoverRadius = 12.0f;
+static constexpr float kCoverRadius = 6.0f;
 static constexpr float kPlayBtnR = 13.0f;
 static constexpr float kPlayBtnBgR = kPlayBtnR + 9.0f;
 static constexpr float kSideBtnR = 12.0f;
@@ -56,6 +58,74 @@ static constexpr float kRightW = 180.0f;
 static constexpr float kRowGap = 6.0f;
 static constexpr float kPi = 3.14159265358979323846f;
 
+/**
+ * 将秒数格式化为 m:ss 形式。
+ * @param seconds 秒数
+ * @return 格式化后的时长字符串
+ */
+std::string formatTime(double seconds);
+
+/**
+ * 将 m:ss 格式的时长文本解析为秒数。
+ * @param text 时长文本
+ * @return 解析后的秒数；解析失败返回 -1
+ */
+int parseTimeText(std::string_view text);
+
+/**
+ * 绘制上一首图标（竖线 + 左三角）。
+ * @param c Skia 画布
+ * @param cx 图标中心 X 坐标
+ * @param cy 图标中心 Y 坐标
+ * @param p 画笔
+ */
+void drawPrevIcon(SkCanvas *c, float cx, float cy, const SkPaint &p);
+
+/**
+ * 绘制播放图标（居中三角）。
+ * @param c Skia 画布
+ * @param cx 图标中心 X 坐标
+ * @param cy 图标中心 Y 坐标
+ * @param sz 三角尺寸
+ * @param p 画笔
+ */
+void drawPlayIcon(SkCanvas *c, float cx, float cy, float sz, const SkPaint &p);
+
+/**
+ * 绘制暂停图标（双竖线）。
+ * @param c Skia 画布
+ * @param cx 图标中心 X 坐标
+ * @param cy 图标中心 Y 坐标
+ * @param p 画笔
+ */
+void drawPauseIcon(SkCanvas *c, float cx, float cy, const SkPaint &p);
+
+/**
+ * 绘制加载旋转动画。
+ * @param c Skia 画布
+ * @param cx 动画中心 X 坐标
+ * @param cy 动画中心 Y 坐标
+ */
+void drawLoadingSpinner(SkCanvas *c, float cx, float cy);
+
+/**
+ * 绘制下一首图标（右三角 + 竖线）。
+ * @param c Skia 画布
+ * @param cx 图标中心 X 坐标
+ * @param cy 图标中心 Y 坐标
+ * @param p 画笔
+ */
+void drawNextIcon(SkCanvas *c, float cx, float cy, const SkPaint &p);
+
+/**
+ * 绘制扬声器图标。
+ * @param c Skia 画布
+ * @param x 图标左上角 X 坐标
+ * @param cy 图标垂直中心 Y 坐标
+ * @param p 画笔
+ */
+void drawSpeaker(SkCanvas *c, float x, float cy, const SkPaint &p);
+
 export namespace components {
 
 /**
@@ -67,84 +137,174 @@ export namespace components {
  */
 class PlayerBar : public Widget {
 public:
+  /**
+   * 创建播放器底栏。
+   * @param parent 父级控件
+   */
   explicit PlayerBar(Widget *parent = nullptr);
 
-  Signal<> previousClicked;
-  Signal<> playPauseClicked;
-  Signal<> nextClicked;
-  Signal<double> seekRequested;
-  Signal<float> volumeChanged;
+  Signal<> previousClicked;      // 上一首点击信号
+  Signal<> playPauseClicked;     // 播放/暂停点击信号
+  Signal<> nextClicked;          // 下一首点击信号
+  Signal<double> seekRequested;  // 进度跳转请求信号
+  Signal<float> volumeChanged;   // 音量变化信号
 
+  /** 布局子控件。 */
   void layoutChildren() override;
+
+  /** 绘制播放器底栏。 */
   void paint(SkCanvas *canvas) override;
+
+  /** 渲染播放器底栏及其子控件。 */
   void render(SkCanvas *canvas) override;
 
+  /** 显示播放器底栏。 */
   void show();
+
+  /** 隐藏播放器底栏。 */
   void hide();
-  void updateSong(std::string_view title, std::string_view artist, std::string_view duration);
+
+  /**
+   * 更新当前播放歌曲信息。
+   * @param info 歌曲信息
+   */
+  void updateSong(const SongInfo& info);
+
+  /**
+   * 设置播放状态。
+   * @param value 是否正在播放
+   */
   void setPlaying(bool value) noexcept;
+
+  /**
+   * 设置加载状态。
+   * @param value 是否正在加载
+   */
   void setLoading(bool value) noexcept;
+
+  /**
+   * 更新播放进度。
+   * @param position_seconds 当前播放位置（秒）
+   * @param duration_seconds 歌曲总时长（秒）
+   */
   void setPlaybackPosition(double position_seconds, double duration_seconds);
+
+  /**
+   * 设置音量。
+   * @param value 音量值 [0, 1]
+   */
   void setVolume(float value) noexcept;
 
-  // 是否正在展示（含动画中）
+  /**
+   * 是否正在展示（含动画中）。
+   * @return 是否展示中
+   */
   [[nodiscard]] bool showing() const noexcept {
     return showing_;
   }
 
 protected:
+  /** 鼠标移动事件。 */
   void onMouseMove(float x, float y) override;
+
+  /** 鼠标离开事件。 */
   void onMouseLeave(float x, float y) override;
+
+  /** 鼠标左键按下事件。 */
   void onMouseLeftPressed(float x, float y) override;
+
+  /** 鼠标左键释放事件。 */
   void onMouseLeftReleased(float x, float y) override;
 
 private:
-  void setSlideT(float t) noexcept {
-    slide_t = t;
-  }
-  void setAlphaT(float t) noexcept {
-    alpha_ = t;
-  }
-  void setBtnHoverT(float t) noexcept {
-    btn_hover_t = t;
-  }
-  void setBtnPressT(float t) noexcept {
-    btn_press_t = t;
-  }
-  void setPlayHoverT(float t) noexcept {
-    play_hover_t = t;
-  }
-  void setPlayPressT(float t) noexcept {
-    play_press_t = t;
-  }
-  void setTextAlphaT(float t) noexcept {
-    text_alpha = t;
-  }
-
+  /**
+   * 检测鼠标是否悬浮在控制按钮上。
+   * @param x 鼠标 X 坐标
+   * @param y 鼠标 Y 坐标
+   * @return 按钮索引（0: 无, 1: 上一首, 2: 播放, 3: 下一首）
+   */
   [[nodiscard]] int hitTestButton(float x, float y) const;
+
+  /**
+   * 检测鼠标是否悬浮在进度条上。
+   * @param x 鼠标 X 坐标
+   * @param y 鼠标 Y 坐标
+   * @return 是否在进度条范围内
+   */
   [[nodiscard]] bool hitTestProgress(float x, float y) const;
+
+  /**
+   * 检测鼠标是否悬浮在音量条上。
+   * @param x 鼠标 X 坐标
+   * @param y 鼠标 Y 坐标
+   * @return 是否在音量条范围内
+   */
   [[nodiscard]] bool hitTestVolume(float x, float y) const;
+
+  /**
+   * 根据鼠标位置计算进度比例。
+   * @param x 鼠标 X 坐标
+   * @return 进度比例 [0, 1]
+   */
   [[nodiscard]] double progressRatioFromPoint(float x) const;
+
+  /**
+   * 从鼠标位置请求进度跳转。
+   * @param x 鼠标 X 坐标
+   */
   void requestSeekFromPoint(float x);
+
+  /**
+   * 从鼠标位置更新音量。
+   * @param x 鼠标 X 坐标
+   */
   void updateVolumeFromPoint(float x);
-  static std::string formatTime(double seconds);
-  static int parseTimeText(std::string_view text);
-  void drawControlIsland(SkCanvas *c);
-  void drawSideButtonHalo(SkCanvas *c, float cx, float cy, bool active);
-  void drawPrevIcon(SkCanvas *c, float cx, float cy, const SkPaint &p);
-  void drawPlayIcon(SkCanvas *c, float cx, float cy, float sz, const SkPaint &p);
-  void drawPauseIcon(SkCanvas *c, float cx, float cy, const SkPaint &p);
-  void drawLoadingSpinner(SkCanvas *c, float cx, float cy);
-  void drawNextIcon(SkCanvas *c, float cx, float cy, const SkPaint &p);
-  void drawSpeaker(SkCanvas *c, float x, float cy, const SkPaint &p);
-  void drawProgressBar(SkCanvas *c, float cx, float cy, float max_w);
-  void drawVolumeBar(SkCanvas *c, float x, float cy, float w);
+
+  /**
+   * 绘制控制按钮背景岛。
+   * @param c Skia 画布
+   */
+  void drawControlIsland(SkCanvas *c) const;
+
+  /**
+   * 绘制侧边按钮悬浮光环。
+   * @param c Skia 画布
+   * @param cx 按钮中心 X 坐标
+   * @param cy 按钮中心 Y 坐标
+   * @param active 是否激活
+   */
+  void drawSideButtonHalo(SkCanvas *c, float cx, float cy, bool active) const;
+
+  /**
+   * 绘制进度条。
+   * @param canvas Skia 画布
+   * @param cx 进度条中心 X 坐标
+   * @param cy 进度条中心 Y 坐标
+   * @param max_w 进度条最大宽度
+   */
+  void drawProgressBar(SkCanvas *canvas, float cx, float cy, float max_w) const;
+
+  /**
+   * 绘制音量条。
+   * @param canvas Skia 画布
+   * @param x 音量条左上角 X 坐标
+   * @param cy 音量条垂直中心 Y 坐标
+   * @param w 音量条宽度
+   */
+  void drawVolumeBar(SkCanvas *canvas, float x, float cy, float w) const;
+
+  /**
+   * 异步加载专辑封面图片。
+   * @param album_mid 专辑 MID
+   */
+  void loadCoverImage(std::string_view album_mid);
 
   // 渲染节点
   RenderBackground bg_;              // 背景
   RenderBackground cover_bg;         // 封面色块
   RenderSvg cover_svg;               // 封面图标
   float cover_radius = kCoverRadius; // 封面圆角
+  sk_sp<SkImage> cover_image{};      // 专辑封面图片
   RenderText title_text;             // 歌曲标题
   RenderText artist_text;            // 歌手名
   RenderText time_left;              // 已播放时长
@@ -218,8 +378,8 @@ void PlayerBar::show() {
   showing_ = true;
   setVisible(true);
   markLayoutDirty();
-  startAnimation<&PlayerBar::setSlideT>(slide_t, 1.0f, 350.0f, CubicBezier::EaseOut());
-  startAnimation<&PlayerBar::setAlphaT>(alpha_, 1.0f, 350.0f, CubicBezier::EaseOut());
+  startAnimation(slide_t, 1.0f, 350.0f, &slide_t, CubicBezier::EaseOut());
+  startAnimation(alpha_, 1.0f, 350.0f, &alpha_, CubicBezier::EaseOut());
 }
 
 void PlayerBar::hide() {
@@ -229,19 +389,18 @@ void PlayerBar::hide() {
   markLayoutDirty();
 }
 
-void PlayerBar::updateSong(std::string_view title,
-                           std::string_view artist,
-                           std::string_view duration) {
+void PlayerBar::updateSong(const SongInfo& info) {
   text_alpha = 0.0f;
-  title_text.setText(title);
-  artist_text.setText(artist);
-  time_right.setText(duration);
+  title_text.setText(info.title);
+  artist_text.setText(info.artist);
+  time_right.setText(info.duration);
   time_left.setText("0:00");
   progress_ = 0.0f;
-  duration_display_second = parseTimeText(duration);
+  duration_display_second = parseTimeText(info.duration);
   duration_seconds = static_cast<double>(std::max(0, duration_display_second));
   elapsed_display_seconds = 0;
-  startAnimation<&PlayerBar::setTextAlphaT>(text_alpha, 1.0f, 250.0f, CubicBezier::EaseOut());
+  loadCoverImage(info.album_mid);
+  startAnimation(text_alpha, 1.0f, 250.0f, &text_alpha, CubicBezier::EaseOut());
   markLayoutDirty();
 }
 
@@ -269,8 +428,8 @@ void PlayerBar::setPlaybackPosition(const double position_seconds, double durati
   bool changed = std::abs(progress_ - next_progress) > 0.001f;
   progress_ = next_progress;
 
-  const int elapsed_seconds = static_cast<int>(safe_position);
-  if (elapsed_seconds != elapsed_display_seconds) {
+  if (const int elapsed_seconds = static_cast<int>(safe_position);
+      elapsed_seconds != elapsed_display_seconds) {
     elapsed_display_seconds = elapsed_seconds;
     time_left.setText(formatTime(elapsed_seconds));
     changed = true;
@@ -298,31 +457,17 @@ void PlayerBar::setVolume(const float value) noexcept {
   markLayoutDirty();
 }
 
-std::string PlayerBar::formatTime(const double seconds) {
-  const auto total = static_cast<int>(seconds);
-  return std::format("{}:{:02}", total / 60, total % 60);
-}
-
-int PlayerBar::parseTimeText(const std::string_view text) {
-  const auto colon = text.find(':');
-  if (colon == std::string_view::npos) {
-    return -1;
+void PlayerBar::loadCoverImage(const std::string_view album_mid) {
+  if (album_mid.empty()) {
+    return;
   }
 
-  int minutes = 0;
-  int seconds = 0;
-  const auto min_text = text.substr(0, colon);
-  const auto sec_text = text.substr(colon + 1);
-  const auto [min_ptr, min_ec] =
-    std::from_chars(min_text.data(), min_text.data() + min_text.size(), minutes);
-  const auto [sec_ptr, sec_ec] =
-    std::from_chars(sec_text.data(), sec_text.data() + sec_text.size(), seconds);
-  if (min_ec != std::errc{} || sec_ec != std::errc{}
-      || min_ptr != min_text.data() + min_text.size()
-      || sec_ptr != sec_text.data() + sec_text.size()) {
-    return -1;
-  }
-  return minutes * 60 + seconds;
+  const auto mid = std::string(album_mid);
+  thread_manager->addTask([this, mid] {
+    const auto image_url = qqmusic_api::album::get_album_cover(150, mid);
+    const auto image_data = curl::get(image_url).value();
+    cover_image = decodeImage(image_data);
+  });
 }
 
 void PlayerBar::layoutChildren() {
@@ -336,20 +481,20 @@ void PlayerBar::layoutChildren() {
   cover_bg.update(SkRect::MakeXYWH(kPadH, cover_y, kCoverSize, kCoverSize));
   cover_svg.update(SkRect::MakeXYWH(kPadH, cover_y, kCoverSize, kCoverSize));
 
-  const float text_x = kPadH + kCoverSize + 12.0f;
-  const float text_w = kLeftW - kPadH - kCoverSize - 12.0f;
+  constexpr float text_x = kPadH + kCoverSize + 12.0f;
+  constexpr float text_w = kLeftW - kPadH - kCoverSize - 12.0f;
   title_text.update(SkRect::MakeXYWH(text_x, h * 0.5f - 16.0f, text_w, 16.0f));
   artist_text.update(SkRect::MakeXYWH(text_x, h * 0.5f + 4.0f, text_w, 14.0f));
 
   // ─── 中列：控制按钮行 + 进度条行 ───
-  const float center_x = kLeftW;
+  constexpr float center_x = kLeftW;
   const float center_w = std::max(0.0f, w - kLeftW - kRightW);
   const float ctrl_cx = center_x + center_w * 0.5f;
 
   // 按钮行（上半部分）
-  const float btn_row_h = kPlayBtnBgR * 2.0f;
-  const float prog_row_h = kProgressH + 10.0f;
-  const float total_h = btn_row_h + kRowGap + prog_row_h;
+  constexpr float btn_row_h = kPlayBtnBgR * 2.0f;
+  constexpr float prog_row_h = kProgressH + 10.0f;
+  constexpr float total_h = btn_row_h + kRowGap + prog_row_h;
   const float block_y = (h - total_h) * 0.5f;
 
   btn_cy = block_y + btn_row_h * 0.5f + kControlOffsetY;
@@ -457,13 +602,23 @@ void PlayerBar::paint(SkCanvas *canvas) {
     canvas->drawRoundRect(cover_shadow_rect, kCoverRadius, kCoverRadius, coverShadow);
     canvas->restore();
 
-    cover_bg.render(canvas);
-    cover_svg.render(canvas);
+    if (cover_image) {
+      const float cover_y = (h - kCoverSize) * 0.5f;
+      auto cover_rect = SkRect::MakeXYWH(kPadH, cover_y, kCoverSize, kCoverSize);
+      canvas->save();
+      canvas->clipRRect(SkRRect::MakeRectXY(cover_rect, kCoverRadius, kCoverRadius), true);
+      canvas->drawImageRect(cover_image, cover_rect, SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kLinear), nullptr);
+      canvas->restore();
+    } else {
+      cover_bg.render(canvas);
+      cover_svg.render(canvas);
+    }
+
     // 高光层
     SkPaint highlight;
     highlight.setAntiAlias(true);
     highlight.setColor(ColorFromARGB(44, 255, 255, 255));
-    const float hx = kPadH;
+    constexpr float hx = kPadH;
     const float hy = (h - kCoverSize) * 0.5f;
     canvas->drawRoundRect(SkRect::MakeLTRB(hx, hy, hx + kCoverSize, hy + kCoverSize * 0.5f),
                           kCoverRadius, kCoverRadius, highlight);
@@ -553,10 +708,10 @@ void PlayerBar::paint(SkCanvas *canvas) {
   drawVolumeBar(canvas, volume_x, volume_cy, kVolWidth);
 }
 
-void PlayerBar::drawControlIsland(SkCanvas *c) {
+void PlayerBar::drawControlIsland(SkCanvas *c) const {
   const auto island = SkRect::MakeXYWH(btn_prev_cx - 32.0f, btn_cy - kControlIslandH * 0.5f,
                                        btn_next_cx - btn_prev_cx + 64.0f, kControlIslandH);
-  const float island_r = kControlIslandH * 0.5f;
+  constexpr float island_r = kControlIslandH * 0.5f;
 
   SkPaint shadow_layer;
   shadow_layer.setImageFilter(SkImageFilters::Blur(10.0f, 10.0f, nullptr));
@@ -592,7 +747,7 @@ void PlayerBar::drawControlIsland(SkCanvas *c) {
   c->drawRoundRect(island.makeInset(0.5f, 0.5f), island_r - 0.5f, island_r - 0.5f, border);
 }
 
-void PlayerBar::drawSideButtonHalo(SkCanvas *c, const float cx, const float cy, const bool active) {
+void PlayerBar::drawSideButtonHalo(SkCanvas *c, const float cx, const float cy, const bool active) const {
   const float t = active ? btn_hover_t : 0.0f;
   if (t <= 0.01f) return;
 
@@ -610,11 +765,11 @@ void PlayerBar::drawSideButtonHalo(SkCanvas *c, const float cx, const float cy, 
 }
 
 // ─── 进度条 ───
-void PlayerBar::drawProgressBar(SkCanvas *canvas, float cx, float cy, float max_w) {
+void PlayerBar::drawProgressBar(SkCanvas *canvas, float cx, float cy, float max_w) const {
   const float x0 = std::round(cx - max_w * 0.5f);
   const float y0 = std::round(cy - kProgressH * 0.5f);
   const float w = std::round(max_w);
-  const float r = kProgressH * 0.5f;
+  constexpr float r = kProgressH * 0.5f;
 
   // 轨道
   SkPaint track;
@@ -633,8 +788,9 @@ void PlayerBar::drawProgressBar(SkCanvas *canvas, float cx, float cy, float max_
 }
 
 // ─── 音量条 ───
-void PlayerBar::drawVolumeBar(SkCanvas *canvas, float x, float cy, float w) {
-  const float r = kVolTrackH * 0.5f;
+void PlayerBar::drawVolumeBar(SkCanvas *canvas, const float x, const float cy,
+                              const float w) const {
+  constexpr float r = kVolTrackH * 0.5f;
 
   SkPaint track;
   track.setAntiAlias(true);
@@ -718,17 +874,17 @@ void PlayerBar::onMouseMove(float x, float y) {
   const int btn = hitTestButton(x, y);
   if (btn != hovered_btn) {
     hovered_btn = btn;
-    startAnimation<&PlayerBar::setBtnHoverT>(btn_hover_t, (btn == 1 || btn == 3) ? 1.0f : 0.0f,
-                                             120.0f, CubicBezier::EaseOut());
-    startAnimation<&PlayerBar::setPlayHoverT>(play_hover_t, btn == 2 ? 1.0f : 0.0f, 120.0f,
-                                               CubicBezier::EaseOut());
+    startAnimation(btn_hover_t, (btn == 1 || btn == 3) ? 1.0f : 0.0f, 120.0f, &btn_hover_t,
+                   CubicBezier::EaseOut());
+    startAnimation(play_hover_t, btn == 2 ? 1.0f : 0.0f, 120.0f, &play_hover_t,
+                   CubicBezier::EaseOut());
   }
 }
 
 void PlayerBar::onMouseLeave(float, float) {
   hovered_btn = 0;
-  startAnimation<&PlayerBar::setBtnHoverT>(btn_hover_t, 0.0f, 180.0f, CubicBezier::EaseOut());
-  startAnimation<&PlayerBar::setPlayHoverT>(play_hover_t, 0.0f, 180.0f, CubicBezier::EaseOut());
+  startAnimation(btn_hover_t, 0.0f, 180.0f, &btn_hover_t, CubicBezier::EaseOut());
+  startAnimation(play_hover_t, 0.0f, 180.0f, &play_hover_t, CubicBezier::EaseOut());
 }
 
 void PlayerBar::onMouseLeftPressed(float x, float y) {
@@ -746,9 +902,9 @@ void PlayerBar::onMouseLeftPressed(float x, float y) {
   }
 
   if (hovered_btn == 1 || hovered_btn == 3) {
-    startAnimation<&PlayerBar::setBtnPressT>(btn_press_t, 1.0f, 60.0f, CubicBezier::EaseOut());
+    startAnimation(btn_press_t, 1.0f, 60.0f, &btn_press_t, CubicBezier::EaseOut());
   } else if (hovered_btn == 2) {
-    startAnimation<&PlayerBar::setPlayPressT>(play_press_t, 1.0f, 60.0f, CubicBezier::EaseOut());
+    startAnimation(play_press_t, 1.0f, 60.0f, &play_press_t, CubicBezier::EaseOut());
   }
 }
 
@@ -768,10 +924,10 @@ void PlayerBar::onMouseLeftReleased(float x, float) {
   }
 
   if (btn_press_t > 0.0f) {
-    startAnimation<&PlayerBar::setBtnPressT>(btn_press_t, 0.0f, 180.0f, CubicBezier::EaseOut());
+    startAnimation(btn_press_t, 0.0f, 180.0f, &btn_press_t, CubicBezier::EaseOut());
   }
   if (play_press_t > 0.0f) {
-    startAnimation<&PlayerBar::setPlayPressT>(play_press_t, 0.0f, 180.0f, CubicBezier::EaseOut());
+    startAnimation(play_press_t, 0.0f, 180.0f, &play_press_t, CubicBezier::EaseOut());
   }
 
   if (released_btn == 1) {
@@ -783,11 +939,13 @@ void PlayerBar::onMouseLeftReleased(float x, float) {
   }
 }
 
-// ─── 图标 ───
+} // namespace components
+
+// ─── 独立函数 ───
 
 // 上一首图标：竖线 + 左三角，整体水平居中
 // 总宽 = barW(2) + gap(2.5) + triW(7.5) = 12, 中心在 cx-0.25 ≈ cx
-void PlayerBar::drawPrevIcon(SkCanvas *c, float cx, float cy, const SkPaint &p) {
+void drawPrevIcon(SkCanvas *c, float cx, float cy, const SkPaint &p) {
   // 竖线（偏左）
   c->drawRect(SkRect::MakeXYWH(cx - 6.0f, cy - 6.5f, 2.0f, 13.0f), p);
   // 三角（偏左）
@@ -800,7 +958,7 @@ void PlayerBar::drawPrevIcon(SkCanvas *c, float cx, float cy, const SkPaint &p) 
 }
 
 // 播放图标：居中三角
-void PlayerBar::drawPlayIcon(SkCanvas *c, float cx, float cy, float sz, const SkPaint &p) {
+void drawPlayIcon(SkCanvas *c, float cx, float cy, float sz, const SkPaint &p) {
   SkPathBuilder b;
   b.moveTo(SkPoint::Make(cx + sz * 0.42f, cy));
   b.lineTo(SkPoint::Make(cx - sz * 0.38f, cy - sz * 0.55f));
@@ -809,14 +967,14 @@ void PlayerBar::drawPlayIcon(SkCanvas *c, float cx, float cy, float sz, const Sk
   c->drawPath(b.detach(), p);
 }
 
-void PlayerBar::drawPauseIcon(SkCanvas *c, float cx, float cy, const SkPaint &p) {
+void drawPauseIcon(SkCanvas *c, float cx, float cy, const SkPaint &p) {
   SkPaint bar = p;
   bar.setStyle(SkPaint::kFill_Style);
   c->drawRoundRect(SkRect::MakeXYWH(cx - 5.4f, cy - 6.2f, 3.2f, 12.4f), 1.3f, 1.3f, bar);
   c->drawRoundRect(SkRect::MakeXYWH(cx + 2.2f, cy - 6.2f, 3.2f, 12.4f), 1.3f, 1.3f, bar);
 }
 
-void PlayerBar::drawLoadingSpinner(SkCanvas *c, const float cx, const float cy) {
+void drawLoadingSpinner(SkCanvas *c, const float cx, const float cy) {
   const float t = static_cast<float>(profiling::frame_clock.now % 1000000ULL) / 1000000.0f;
   constexpr int kDots = 8;
 
@@ -834,7 +992,7 @@ void PlayerBar::drawLoadingSpinner(SkCanvas *c, const float cx, const float cy) 
 }
 
 // 下一首图标：右三角 + 竖线，整体水平居中
-void PlayerBar::drawNextIcon(SkCanvas *c, float cx, float cy, const SkPaint &p) {
+void drawNextIcon(SkCanvas *c, float cx, float cy, const SkPaint &p) {
   // 三角（偏右）
   SkPathBuilder b;
   b.moveTo(SkPoint::Make(cx - 5.5f, cy - 6.5f));
@@ -846,7 +1004,7 @@ void PlayerBar::drawNextIcon(SkCanvas *c, float cx, float cy, const SkPaint &p) 
   c->drawRect(SkRect::MakeXYWH(cx + 4.0f, cy - 6.5f, 2.0f, 13.0f), p);
 }
 
-void PlayerBar::drawSpeaker(SkCanvas *c, float x, float cy, const SkPaint &p) {
+void drawSpeaker(SkCanvas *c, float x, float cy, const SkPaint &p) {
   SkPaint sp = p;
   sp.setColor(kTextMuted);
   sp.setStyle(SkPaint::kFill_Style);
@@ -869,4 +1027,29 @@ void PlayerBar::drawSpeaker(SkCanvas *c, float x, float cy, const SkPaint &p) {
   c->drawPath(wave.detach(), sp);
 }
 
-} // namespace components
+std::string formatTime(const double seconds) {
+  const auto total = static_cast<int>(seconds);
+  return std::format("{}:{:02}", total / 60, total % 60);
+}
+
+int parseTimeText(const std::string_view text) {
+  const auto colon = text.find(':');
+  if (colon == std::string_view::npos) {
+    return -1;
+  }
+
+  int minutes = 0;
+  int seconds = 0;
+  const auto min_text = text.substr(0, colon);
+  const auto sec_text = text.substr(colon + 1);
+  const auto [min_ptr, min_ec] =
+    std::from_chars(min_text.data(), min_text.data() + min_text.size(), minutes);
+  const auto [sec_ptr, sec_ec] =
+    std::from_chars(sec_text.data(), sec_text.data() + sec_text.size(), seconds);
+  if (min_ec != std::errc{} || sec_ec != std::errc{}
+      || min_ptr != min_text.data() + min_text.size()
+      || sec_ptr != sec_text.data() + sec_text.size()) {
+    return -1;
+  }
+  return minutes * 60 + seconds;
+}

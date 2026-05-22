@@ -11,6 +11,7 @@ import thread_pool;
 import qq_music_api;
 import core;
 import bass24;
+import models;
 
 using namespace ui::layout;
 using namespace ui::widgets;
@@ -159,9 +160,9 @@ private:
   std::mutex selected_mutex{};                    // 当前选中状态锁
 
 public:
-  Signal<std::string, std::string, std::string> songSelected{}; // 歌曲选中信号
-  Signal<bool> playbackStateChanged{};                          // 播放状态变化信号
-  Signal<bool> loadingStateChanged{};                           // 当前歌曲加载状态变化信号
+  Signal<const SongInfo &> songSelected{}; // 歌曲选中信号
+  Signal<bool> playbackStateChanged{};     // 播放状态变化信号
+  Signal<bool> loadingStateChanged{};      // 当前歌曲加载状态变化信号
 };
 
 LibraryPage::LibraryPage(Widget *parent) : Widget(parent) {
@@ -417,8 +418,7 @@ void LibraryPage::onSongDoubleClicked(SongItem *item) {
     selected_mid = item->info().mid;
   }
 
-  const auto &info = selected_item->info();
-  songSelected.emit(info.title, info.artist, info.duration);
+  songSelected.emit(selected_item->info());
   playSong(item);
 }
 
