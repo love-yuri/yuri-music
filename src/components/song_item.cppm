@@ -8,6 +8,9 @@ import ui;
 import core;
 import skia;
 import glfw.api;
+import qq_music_api;
+import thread_pool;
+import vulkan.context;
 
 using namespace ui::render;
 using namespace ui::layout;
@@ -16,44 +19,32 @@ using namespace ui::animation;
 using namespace ui::algorithm;
 using namespace skia;
 
-// --- 颜色常量（Apple Music 桌面端风格） ---
-
-constexpr SkColor kMutedColor = ColorFromARGB(132, 54, 65, 82);
-constexpr SkColor kArtistColor = ColorFromARGB(154, 65, 78, 96);
-constexpr SkColor kCoverColor = ColorFromARGB(255, 224, 231, 238);
-constexpr SkColor kHoverBgColor = ColorFromARGB(96, 255, 255, 255);
-constexpr SkColor kPressBgColor = ColorFromARGB(154, 248, 250, 252);
-constexpr SkColor kPlayingBgColor = ColorFromARGB(70, 255, 236, 242);
-constexpr SkColor kPlayingAccentColor = ColorFromARGB(255, 218, 52, 92);
-constexpr SkColor kActionBtnColor = ColorFromARGB(132, 42, 52, 68);
-constexpr SkColor kLikedColor = ColorFromARGB(255, 226, 47, 88);
-constexpr SkColor kSelectedBgColor = ColorFromARGB(118, 255, 255, 255);
-constexpr SkColor kSongTitleColor = ColorFromARGB(255, 24, 31, 42);
+// 颜色常量
+constexpr SkColor kMutedColor = ColorFromARGB(132, 54, 65, 82);          // 次要文字（序号、时长）
+constexpr SkColor kArtistColor = ColorFromARGB(154, 65, 78, 96);         // 歌手名
+constexpr SkColor kCoverColor = ColorFromARGB(255, 224, 231, 238);       // 封面占位色
+constexpr SkColor kHoverBgColor = ColorFromARGB(96, 255, 255, 255);      // 悬浮背景
+constexpr SkColor kPressBgColor = ColorFromARGB(154, 248, 250, 252);     // 按下背景
+constexpr SkColor kPlayingBgColor = ColorFromARGB(70, 255, 236, 242);    // 播放中背景
+constexpr SkColor kPlayingAccentColor = ColorFromARGB(255, 218, 52, 92); // 播放中强调色
+constexpr SkColor kActionBtnColor = ColorFromARGB(132, 42, 52, 68);      // 操作按钮（心形、更多）
+constexpr SkColor kLikedColor = ColorFromARGB(255, 226, 47, 88);         // 已喜欢（心形填充）
+constexpr SkColor kSelectedBgColor = ColorFromARGB(118, 255, 255, 255);  // 选中背景
+constexpr SkColor kSongTitleColor = ColorFromARGB(255, 24, 31, 42);      // 歌曲标题
 
 // --- 布局常量 ---
-
-// 封面尺寸
-static constexpr float kCoverSize = 40.0f;
-// 封面圆角
-static constexpr float kCoverRadius = 10.0f;
-// 行高
-static constexpr float kRowHeight = 58.0f;
-// 左右内边距
-static constexpr float kPadH = 10.0f;
-// 序号区宽度
-static constexpr float kIndexWidth = 28.0f;
-// 元素间距
-static constexpr float kGap = 12.0f;
-// 时长区宽度
-static constexpr float kDurationWidth = 48.0f;
-// 操作按钮区宽度
-static constexpr float kActionWidth = 72.0f;
-// 操作区距离滚动条的安全间距
-static constexpr float kActionRightInset = 32.0f;
-// 行 hover 背景右侧留白，避免贴到滚动条
-static constexpr float kHoverRightInset = 18.0f;
-// 双击阈值
-static constexpr std::uint64_t kDoubleClickThresholdUs = 400'000; // 400ms
+constexpr int kCoverGetSize = 150;         // 封面请求尺寸
+constexpr float kCoverSize = 40.0f;        // 封面尺寸
+constexpr float kCoverRadius = 10.0f;      // 封面圆角
+constexpr float kRowHeight = 58.0f;        // 行高
+constexpr float kPadH = 10.0f;             // 左右内边距
+constexpr float kIndexWidth = 28.0f;       // 序号区宽度
+constexpr float kGap = 12.0f;              // 元素间距
+constexpr float kDurationWidth = 48.0f;    // 时长区宽度
+constexpr float kActionWidth = 72.0f;      // 操作按钮区宽度
+constexpr float kActionRightInset = 32.0f; // 操作区距离滚动条的安全间距
+constexpr float kHoverRightInset = 18.0f;  // 行 hover 背景右侧留白，避免贴到滚动条
+constexpr std::uint64_t kDoubleClickThresholdUs = 400'000; // 400ms 双击阈值
 
 export namespace components {
 
@@ -65,6 +56,7 @@ struct SongInfo {
   std::string artist{};      // 歌手名
   std::string duration{};    // 时长
   std::string mid{};         // 歌曲 mid
+  std::string album_mid{};   // 专辑 mid
   bool has_flac{};           // 是否存在 flac 音源
   bool has_ape{};            // 是否存在 ape 音源
   bool has_mp3_320{};        // 是否存在 320k mp3 音源
@@ -82,18 +74,24 @@ struct SongInfo {
 class SongItem : public Widget {
 public:
   /** 创建歌曲行组件 */
-  SongItem(int index,
-           SongInfo info,
-           bool is_playing = false,
-           Widget *parent = nullptr);
+  SongItem(int index, SongInfo info, bool is_playing = false, Widget *parent = nullptr);
 
+  /**
+   * 布局child
+   */
   void layoutChildren() override;
+
+  /**
+   * 绘制自身
+   */
   void paint(SkCanvas *canvas) override;
 
   /** 设置是否选中 */
   void setSelected(bool value);
+
   /** 是否选中 */
   [[nodiscard]] bool isSelected() const { return selected; }
+
   /** 获取歌曲信息 */
   [[nodiscard]] const SongInfo& info() const { return info_; }
 
@@ -102,24 +100,37 @@ public:
 protected:
   /** 鼠标悬浮进入 */
   void onMouseEnter(float x, float y) override;
+
   /** 鼠标悬浮离开 */
   void onMouseLeave(float x, float y) override;
+
   /** 鼠标移动 */
   void onMouseMove(float x, float y) override;
+
   /** 鼠标按下 */
   void onMouseLeftPressed(float x, float y) override;
+
   /** 鼠标松开 */
   void onMouseLeftReleased(float x, float y) override;
 
 private:
   /** 根据各动画通道合成最终背景色 */
   [[nodiscard]] SkColor computeBackgroundColor() const noexcept;
+
   /** 判断鼠标是否悬浮在心形按钮上 */
   [[nodiscard]] bool isOverHeart(float x, float y) const;
+
   /** 判断鼠标是否悬浮在更多按钮上 */
   [[nodiscard]] bool isOverMore(float x, float y) const;
+
   /** 设置喜欢按钮弹性动画进度 */
-  void setLikeT(float t) noexcept { like_t = t; }
+  void setLikeT(const float t) noexcept { like_t = t; }
+
+  /** 异步加载专辑封面 */
+  void loadCoverImage();
+
+  /** 绘制专辑封面 */
+  bool drawCoverImage(SkCanvas *canvas) const;
 
   // --- 渲染节点 ---
   RenderText index_text;             // 序号
@@ -133,6 +144,7 @@ private:
   float hover_radius = 12.0f;        // 行背景圆角
   SongInfo info_;                    // 歌曲信息
   SkColor cover_color = kCoverColor; // 封面主色
+  sk_sp<SkImage> cover_image{};      // 专辑封面图片
 
   // --- 交互状态 ---
   bool is_playing = false;           // 是否播放中
@@ -199,6 +211,46 @@ SongItem::SongItem(const int index,
   // 固定高度
   setMaxHeight(kRowHeight);
   setMinHeight(kRowHeight);
+
+  // 加载歌曲图片
+  loadCoverImage();
+}
+
+void SongItem::loadCoverImage() {
+  if (info_.album_mid.empty()) {
+    return;
+  }
+
+  const auto album_mid = info_.album_mid;
+  thread_manager->addTask([this, album_mid] {
+    const auto image_url = qqmusic_api::album::get_album_cover(kCoverGetSize, album_mid);
+    const auto image_data = curl::get(image_url).value();
+    if (cover_image = decodeImage(image_data)) {
+      cover_image->makeRasterImage();
+    }
+  });
+}
+
+bool SongItem::drawCoverImage(SkCanvas *canvas) const {
+  if (!cover_image) {
+    return false;
+  }
+
+  constexpr float cover_x = kPadH + kIndexWidth + kGap;
+  constexpr float cover_y = (kRowHeight - kCoverSize) * 0.5f;
+  constexpr auto cover_rect = SkRect::MakeXYWH(cover_x, cover_y, kCoverSize, kCoverSize);
+  constexpr float radius = 6.0f;
+
+  canvas->save();
+  canvas->clipRRect(SkRRect::MakeRectXY(cover_rect, radius, radius), true);
+  canvas->drawImageRect(
+    cover_image,
+    cover_rect,
+    SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kLinear),
+    nullptr
+  );
+  canvas->restore();
+  return true;
 }
 
 SkColor SongItem::computeBackgroundColor() const noexcept {
@@ -373,15 +425,15 @@ void SongItem::paint(SkCanvas *canvas) {
 
   cover_bg.render(canvas);
 
-  SkPaint coverShine;
-  coverShine.setAntiAlias(true);
-  coverShine.setColor(ColorFromARGB(52, 255, 255, 255));
-  constexpr float cover_x = kPadH + kIndexWidth + kGap;
-  constexpr float cover_y = (kRowHeight - kCoverSize) * 0.5f;
-  canvas->drawRoundRect(SkRect::MakeXYWH(cover_x + 2.0f, cover_y + 2.0f, kCoverSize - 4.0f, kCoverSize * 0.42f),
-                        kCoverRadius - 2.0f, kCoverRadius - 2.0f, coverShine);
-
-  cover_svg.render(canvas);
+  if (!drawCoverImage(canvas)) {
+    SkPaint coverShine;
+    coverShine.setAntiAlias(true);
+    coverShine.setColor(ColorFromARGB(52, 255, 255, 255));
+    constexpr float cover_x = kPadH + kIndexWidth + kGap;
+    constexpr float cover_y = (kRowHeight - kCoverSize) * 0.5f;
+    canvas->drawRoundRect(SkRect::MakeXYWH(cover_x + 2.0f, cover_y + 2.0f, kCoverSize - 4.0f, kCoverSize * 0.42f),kCoverRadius - 2.0f, kCoverRadius - 2.0f, coverShine);
+    cover_svg.render(canvas);
+  }
   title_text.render(canvas);
   artist_text.render(canvas);
   duration_text.render(canvas);

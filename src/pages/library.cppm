@@ -277,9 +277,15 @@ std::string LibraryPage::formatSingers(const std::vector<SingerType> &singers) {
 
 SongInfo LibraryPage::makeSongInfo(const SonglistType &music) {
   return SongInfo{
-    std::string(music.title),   formatSingers(music.singer), formatDuration(music.interval),
-    std::string(music.mid),     music.file.size_flac > 0,    music.file.size_ape > 0,
-    music.file.size_320mp3 > 0, music.file.size_128mp3 > 0,
+    .title = std::string(music.title),
+    .artist = formatSingers(music.singer),
+    .duration = formatDuration(music.interval),
+    .mid = std::string(music.mid),
+    .album_mid = std::string(music.album.mid),
+    .has_flac = music.file.size_flac > 0,
+    .has_ape = music.file.size_ape > 0,
+    .has_mp3_320 = music.file.size_320mp3 > 0,
+    .has_mp3_128 = music.file.size_128mp3 > 0,
   };
 }
 
