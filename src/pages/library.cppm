@@ -276,7 +276,7 @@ std::string LibraryPage::formatSingers(const std::vector<SingerType> &singers) {
 }
 
 SongInfo LibraryPage::makeSongInfo(const SonglistType &music) {
-  return SongInfo{
+  return SongInfo {
     .title = std::string(music.title),
     .artist = formatSingers(music.singer),
     .duration = formatDuration(music.interval),
@@ -286,6 +286,7 @@ SongInfo LibraryPage::makeSongInfo(const SonglistType &music) {
     .has_ape = music.file.size_ape > 0,
     .has_mp3_320 = music.file.size_320mp3 > 0,
     .has_mp3_128 = music.file.size_128mp3 > 0,
+    .liked = true,
   };
 }
 

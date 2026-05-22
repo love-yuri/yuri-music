@@ -61,6 +61,7 @@ struct SongInfo {
   bool has_ape{};            // 是否存在 ape 音源
   bool has_mp3_320{};        // 是否存在 320k mp3 音源
   bool has_mp3_128{};        // 是否存在 128k mp3 音源
+  bool liked = false;        // 是否已喜欢
 };
 
 /**
@@ -90,7 +91,7 @@ public:
   void setSelected(bool value);
 
   /** 是否选中 */
-  [[nodiscard]] bool isSelected() const { return selected; }
+  [[nodiscard]] bool isSelected() const { return selected_; }
 
   /** 获取歌曲信息 */
   [[nodiscard]] const SongInfo& info() const { return info_; }
@@ -148,10 +149,10 @@ private:
 
   // --- 交互状态 ---
   bool is_playing = false;           // 是否播放中
-  bool liked = false;                // 是否已喜欢
+
   bool is_hovering = false;          // 是否悬浮中
   bool is_pressed = false;           // 是否正在被按下
-  bool selected = false;             // 是否被选中
+  bool selected_ = false;            // 是否被选中
   std::uint64_t last_click_time = 0; // 上次点击时间
 
   // --- 动画进度（独立通道，互不干扰） ---
@@ -311,7 +312,7 @@ void SongItem::onMouseLeftReleased(float x, float y) {
   last_click_time = now;
 
   if (isOverHeart(x, y)) {
-    liked = !liked;
+    info_.liked = !info_.liked;
     like_t = 1.0f;
     startAnimation<&SongItem::setLikeT>(like_t, 0.0f, 260.0f, CubicBezier::EaseOut());
     return;
@@ -323,7 +324,7 @@ void SongItem::onMouseLeftReleased(float x, float y) {
   if (elapsed > 0 && elapsed < kDoubleClickThresholdUs) {
     // 双击：选中当前项并发射信号
     last_click_time = 0;
-    if (!selected) {
+    if (!selected_) {
       doubleClicked.emit(this);
     }
   }
@@ -338,8 +339,8 @@ void SongItem::onMouseMove(float x, float y) {
 }
 
 void SongItem::setSelected(const bool value) {
-  if (selected == value) return;
-  selected = value;
+  if (selected_ == value) return;
+  selected_ = value;
   startAnimation(select_t, value ? 1.0f : 0.0f, 250.0f, &select_t, CubicBezier::EaseOut());
 }
 
@@ -448,8 +449,8 @@ void SongItem::paint(SkCanvas *canvas) {
     SkPaint heart_paint;
     heart_paint.setAntiAlias(true);
     heart_paint.setStyle(SkPaint::kFill_Style);
-    heart_paint.setColor(liked ? kLikedColor : kActionBtnColor);
-    heart_paint.setAlphaf(liked ? 1.0f : action_t);
+    heart_paint.setColor(info_.liked ? kLikedColor : kActionBtnColor);
+    heart_paint.setAlphaf(info_.liked ? 1.0f : action_t);
     canvas->save();
     const float heart_scale = 1.0f + like_t * 0.16f;
     canvas->translate(heart_cx, btn_cy);
