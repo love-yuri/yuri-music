@@ -61,11 +61,7 @@ configuration (is_debug_mode, vulkan constants)
 
 ### Coding Conventions
 
-- **声明与实现分离**：修改或新增的 class 必须分离声明与实现，除非类非常短（简单 POD 或只有几行的小工具类）
-- **函数注释**：每个函数声明上方必须添加完整的Doxygen 注释并且不同函数需要间隔一行
-- **命名风格**：新增命名（类名、函数名、变量名）须保持与同模块已有代码一致的风格
-- **字段命名**：单个单词加尾部下划线（如 `title_`、`bg_`），两个及以上单词不加（如 `player_bar`、`cover_bg`、`text_alpha`）
-- **字段注释**：所有字段右侧必须添加中文注释，注释列对齐（如 `RenderBackground bg_;       // 背景`）
+代码规范请读取 项目目录下 .claude/commands/style.md 获取
 
 ### File Conventions
 
