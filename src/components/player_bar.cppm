@@ -959,16 +959,16 @@ void PlayerBar::onMouseLeftReleased(float x, float) {
 
 // ─── 独立函数 ───
 
-// 上一首图标：竖线 + 左三角，整体水平居中
+// 上一首图标：左竖线 + 左三角，整体水平居中
 // 总宽 = barW(2) + gap(2.5) + triW(7.5) = 12, 中心在 cx-0.25 ≈ cx
 void drawPrevIcon(SkCanvas *c, float cx, float cy, const SkPaint &p) {
   // 竖线（偏左）
   c->drawRect(SkRect::MakeXYWH(cx - 6.0f, cy - 6.5f, 2.0f, 13.0f), p);
-  // 三角（偏左）
+  // 三角（朝左）
   SkPathBuilder b;
-  b.moveTo(SkPoint::Make(cx - 2.5f, cy - 6.5f));
-  b.lineTo(SkPoint::Make(cx + 5.5f, cy));
-  b.lineTo(SkPoint::Make(cx - 2.5f, cy + 6.5f));
+  b.moveTo(SkPoint::Make(cx - 2.5f, cy));
+  b.lineTo(SkPoint::Make(cx + 5.5f, cy - 6.5f));
+  b.lineTo(SkPoint::Make(cx + 5.5f, cy + 6.5f));
   b.close();
   c->drawPath(b.detach(), p);
 }
