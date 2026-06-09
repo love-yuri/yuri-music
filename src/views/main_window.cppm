@@ -118,7 +118,7 @@ private:
   std::unordered_map<std::string, MenuButton *> menu_buttons; // 菜单按钮集合
 
   // 播放器底栏高度
-  static constexpr float kPlayerBarHeight = 78.0f;
+  static constexpr float kPlayerBarHeight = 86.0f;
   // 各菜单项对应的 SVG 图标路径
   static constexpr auto home_svg = "resources/svg/home.svg";
   static constexpr auto browse_svg = "resources/svg/browse.svg";
