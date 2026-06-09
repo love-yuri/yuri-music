@@ -34,10 +34,10 @@ constexpr SkColor kSelectedBgColor = ColorFromARGB(118, 255, 255, 255);  // 选�
 constexpr SkColor kSongTitleColor = ColorFromARGB(255, 24, 31, 42);      // 歌曲标题
 
 // --- 布局常量 ---
-static constexpr int kCoverGetSize = 150;         // 封面请求尺寸
-static constexpr float kCoverSize = 40.0f;        // 封面尺寸
+static constexpr int kCoverGetSize = 300;         // 封面请求尺寸
+static constexpr float kCoverSize = 50.0f;        // 封面尺寸
 static constexpr float kCoverRadius = 10.0f;      // 封面圆角
-static constexpr float kRowHeight = 58.0f;        // 行高
+static constexpr float kRowHeight = 68.0f;        // 行高
 static constexpr float kPadH = 10.0f;             // 左右内边距
 static constexpr float kIndexWidth = 28.0f;       // 序号区宽度
 static constexpr float kGap = 12.0f;              // 元素间距
@@ -165,7 +165,7 @@ SongItem::SongItem(const int index,
   cover_color = palette[static_cast<std::size_t>(index) % std::size(palette)];
 
   // 序号
-  index_text.setFontSize(12);
+  index_text.setFontSize(12.5f);
   index_text.setColor(is_playing ? kPlayingAccentColor : kMutedColor);
   index_text.setAlignment(Alignment::CenterRight);
 
@@ -177,17 +177,17 @@ SongItem::SongItem(const int index,
   cover_svg.setAlignment(Alignment::Center);
 
   // 标题
-  title_text.setFontSize(13);
+  title_text.setFontSize(14);
   title_text.setColor(is_playing ? kPlayingAccentColor : kSongTitleColor);
   title_text.setAlignment(Alignment::TopLeft);
 
   // 歌手
-  artist_text.setFontSize(12);
+  artist_text.setFontSize(12.5f);
   artist_text.setColor(kArtistColor);
   artist_text.setAlignment(Alignment::TopLeft);
 
   // 时长
-  duration_text.setFontSize(12);
+  duration_text.setFontSize(12.5f);
   duration_text.setColor(kMutedColor);
   duration_text.setAlignment(Alignment::CenterRight);
 
@@ -223,7 +223,7 @@ bool SongItem::drawCoverImage(SkCanvas *canvas) const {
   constexpr float cover_x = kPadH + kIndexWidth + kGap;
   constexpr float cover_y = (kRowHeight - kCoverSize) * 0.5f;
   constexpr auto cover_rect = SkRect::MakeXYWH(cover_x, cover_y, kCoverSize, kCoverSize);
-  constexpr float radius = 6.0f;
+  constexpr float radius = kCoverRadius;
 
   canvas->save();
   canvas->clipRRect(SkRRect::MakeRectXY(cover_rect, radius, radius), true);
@@ -366,13 +366,17 @@ void SongItem::layoutChildren() {
   constexpr float text_x = cover_x + kCoverSize + kGap;
   const float text_w = action_x - kGap - text_x;
 
-  // 标题：垂直偏上
-  constexpr float title_y = 10.0f;
-  title_text.update(SkRect::MakeXYWH(text_x, title_y, text_w, 16.0f));
+  // 标题/歌手：围绕行高中心分布
+  constexpr float kTitleHeight = 19.0f;
+  constexpr float kArtistHeight = 17.0f;
+  constexpr float kTextGap = 5.0f;
+  constexpr float kTextBlockHeight = kTitleHeight + kTextGap + kArtistHeight;
+  constexpr float kTitleY = (kRowHeight - kTextBlockHeight) * 0.5f;
+  title_text.update(SkRect::MakeXYWH(text_x, kTitleY, text_w, kTitleHeight));
 
   // 歌手：标题下方
-  constexpr float artist_y = 28.0f;
-  artist_text.update(SkRect::MakeXYWH(text_x, artist_y, text_w, 14.0f));
+  constexpr float kArtistY = kTitleY + kTitleHeight + kTextGap;
+  artist_text.update(SkRect::MakeXYWH(text_x, kArtistY, text_w, kArtistHeight));
 
   // 时长：操作按钮区左侧
   constexpr float duration_w = kDurationWidth;
@@ -383,15 +387,19 @@ void SongItem::layoutChildren() {
 void SongItem::paint(SkCanvas *canvas) {
   canvas->save();
   const float press_scale = 1.0f - press_t * 0.01f;
-  canvas->translate(contentWidth() * 0.5f, kRowHeight * 0.5f);
-  canvas->scale(press_scale, press_scale);
-  canvas->translate(-contentWidth() * 0.5f, -kRowHeight * 0.5f);
+
+  auto save_pressed_scale = [&] {
+    canvas->save();
+    canvas->translate(contentWidth() * 0.5f, kRowHeight * 0.5f);
+    canvas->scale(press_scale, press_scale);
+    canvas->translate(-contentWidth() * 0.5f, -kRowHeight * 0.5f);
+  };
+
+  save_pressed_scale();
 
   // 合成背景色并渲染
   hover_bg.setColor(computeBackgroundColor());
   hover_bg.render(canvas);
-
-  index_text.render(canvas);
 
   if (hover_t > 0.01f || select_t > 0.01f) {
     constexpr float sigma = 6.0f;
@@ -418,6 +426,9 @@ void SongItem::paint(SkCanvas *canvas) {
     canvas->drawRoundRect(SkRect::MakeXYWH(cover_x + 2.0f, cover_y + 2.0f, kCoverSize - 4.0f, kCoverSize * 0.42f),kCoverRadius - 2.0f, kCoverRadius - 2.0f, coverShine);
     cover_svg.render(canvas);
   }
+  canvas->restore();
+
+  index_text.render(canvas);
   title_text.render(canvas);
   artist_text.render(canvas);
   duration_text.render(canvas);
