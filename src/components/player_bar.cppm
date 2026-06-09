@@ -44,7 +44,7 @@ static constexpr float kPlayBtnBgR = kPlayBtnR + 10.0f;
 static constexpr float kSideBtnR = 13.0f;
 static constexpr float kCtrlGap = 26.0f;
 static constexpr float kControlIslandH = 42.0f;
-static constexpr float kControlOffsetY = 0.0f;
+static constexpr float kControlBlockOffsetY = 3.0f;
 static constexpr float kVolWidth = 92.0f;
 static constexpr float kVolTrackH = 4.0f;
 static constexpr float kVolDotR = 5.5f;
@@ -55,7 +55,7 @@ static constexpr float kProgressMinW = 180.0f;
 static constexpr float kProgressH = 4.0f;
 static constexpr float kLeftW = 292.0f;
 static constexpr float kRightW = 214.0f;
-static constexpr float kRowGap = 7.0f;
+static constexpr float kRowGap = 2.0f;
 static constexpr float kPi = 3.14159265358979323846f;
 
 /**
@@ -501,9 +501,9 @@ void PlayerBar::layoutChildren() {
   constexpr float kButtonRowHeight = kPlayBtnBgR * 2.0f;
   constexpr float kProgressRowHeight = kProgressH + 12.0f;
   constexpr float kTotalHeight = kButtonRowHeight + kRowGap + kProgressRowHeight;
-  const float block_y = std::round((h - kTotalHeight) * 0.5f);
+  const float block_y = std::round((h - kTotalHeight) * 0.5f + kControlBlockOffsetY);
 
-  btn_cy = std::round(block_y + kButtonRowHeight * 0.5f + kControlOffsetY);
+  btn_cy = std::round(block_y + kButtonRowHeight * 0.5f);
   btn_prev_cx = std::round(ctrl_cx - (kPlayBtnR + kSideBtnR + kCtrlGap));
   btn_play_cx = ctrl_cx;
   btn_next_cx = std::round(ctrl_cx + (kPlayBtnR + kSideBtnR + kCtrlGap));
