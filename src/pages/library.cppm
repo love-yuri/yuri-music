@@ -122,10 +122,10 @@ private:
    * @param cache_dir 缓存目录
    * @return 命中的缓存文件路径；未命中时返回空路径
    */
-  static std::filesystem::path cachedSongPath(
-    const SongInfo &info,
-    const std::vector<qqmusic_api::song::SongFileFormat> &formats,
-    const std::filesystem::path &cache_dir = "musics");
+  static std::filesystem::path
+  cachedSongPath(const SongInfo &info,
+                 const std::vector<qqmusic_api::song::SongFileFormat> &formats,
+                 const std::filesystem::path &cache_dir = "musics");
 
   /**
    * 将已解析的歌曲 URL 保存到本地缓存。
@@ -151,9 +151,9 @@ private:
   ScrollArea *items_{};                           // 歌曲列表
   std::vector<SongItem *> song_items{};           // 按列表顺序保存歌曲项
   std::uint64_t tid_{};                           // 当前歌单 ID
-  int offset_{ 0 };                               // 当前加载偏移
-  bool loading_{ false };                         // 是否正在加载
-  bool has_more{ true };                          // 是否还有更多数据
+  int offset_{0};                                 // 当前加载偏移
+  bool loading_{false};                           // 是否正在加载
+  bool has_more{true};                            // 是否还有更多数据
   std::unordered_set<std::string> loading_mids{}; // 正在解析播放地址的歌曲 mid
   std::mutex loading_mutex{};                     // 播放地址解析状态锁
   std::string selected_mid{};                     // 当前选中的歌曲 mid
@@ -220,7 +220,8 @@ void LibraryPage::paint(SkCanvas *canvas) {
 }
 
 void LibraryPage::playPrevious() {
-  if (song_items.empty()) return;
+  if (song_items.empty())
+    return;
 
   const auto it = std::ranges::find(song_items, selected_item);
   if (it == song_items.end() || it == song_items.begin()) {
@@ -231,7 +232,8 @@ void LibraryPage::playPrevious() {
 }
 
 void LibraryPage::playNext() {
-  if (song_items.empty()) return;
+  if (song_items.empty())
+    return;
 
   const auto it = std::ranges::find(song_items, selected_item);
   if (it == song_items.end()) {
@@ -255,16 +257,19 @@ std::string LibraryPage::formatDuration(const int seconds) {
   char buf[8];
   auto [ptr, ec] = std::format_to_n(buf, sizeof(buf) - 1, "{}:{:02}", seconds / 60, seconds % 60);
   *ptr = '\0';
-  return { buf, static_cast<std::size_t>(ptr - buf) };
+  return {buf, static_cast<std::size_t>(ptr - buf)};
 }
 
 // 拼接歌手名
 std::string LibraryPage::formatSingers(const std::vector<SingerType> &singers) {
-  if (singers.empty()) return {};
-  if (singers.size() == 1) return singers[0].name;
+  if (singers.empty())
+    return {};
+  if (singers.size() == 1)
+    return singers[0].name;
 
   std::size_t len = 3 * (singers.size() - 1); // " / "
-  for (auto &s : singers) len += s.name.size();
+  for (auto &s : singers)
+    len += s.name.size();
 
   std::string result;
   result.reserve(len);
@@ -277,17 +282,18 @@ std::string LibraryPage::formatSingers(const std::vector<SingerType> &singers) {
 }
 
 SongInfo LibraryPage::makeSongInfo(const SonglistType &music) {
-  return SongInfo {
-    .title = std::string(music.title),
-    .artist = formatSingers(music.singer),
-    .duration = formatDuration(music.interval),
-    .mid = std::string(music.mid),
-    .album_mid = std::string(music.album.mid),
-    .has_flac = music.file.size_flac > 0,
-    .has_ape = music.file.size_ape > 0,
-    .has_mp3_320 = music.file.size_320mp3 > 0,
-    .has_mp3_128 = music.file.size_128mp3 > 0,
-    .liked = true,
+  return SongInfo{
+      .title = std::string(music.title),
+      .artist = formatSingers(music.singer),
+      .album_name = std::string(music.album.name),
+      .duration = formatDuration(music.interval),
+      .mid = std::string(music.mid),
+      .album_mid = std::string(music.album.mid),
+      .has_flac = music.file.size_flac > 0,
+      .has_ape = music.file.size_ape > 0,
+      .has_mp3_320 = music.file.size_320mp3 > 0,
+      .has_mp3_128 = music.file.size_128mp3 > 0,
+      .liked = true,
   };
 }
 
@@ -327,11 +333,9 @@ std::string LibraryPage::sanitizeFileName(std::string name) {
   return name.empty() ? "unknown" : std::move(name);
 }
 
-std::filesystem::path LibraryPage::cachePathFor(
-  const SongInfo &info,
-  const qqmusic_api::song::SongFileFormat &format,
-  const std::filesystem::path &cache_dir
-) {
+std::filesystem::path LibraryPage::cachePathFor(const SongInfo &info,
+                                                const qqmusic_api::song::SongFileFormat &format,
+                                                const std::filesystem::path &cache_dir) {
   auto stem = info.title;
   if (!info.artist.empty()) {
     stem += " - ";
@@ -341,11 +345,10 @@ std::filesystem::path LibraryPage::cachePathFor(
   return cache_dir / std::format("{}.{}", sanitizeFileName(std::move(stem)), format.e);
 }
 
-std::filesystem::path LibraryPage::cachedSongPath(
-  const SongInfo &info,
-  const std::vector<qqmusic_api::song::SongFileFormat> &formats,
-  const std::filesystem::path &cache_dir
-) {
+std::filesystem::path
+LibraryPage::cachedSongPath(const SongInfo &info,
+                            const std::vector<qqmusic_api::song::SongFileFormat> &formats,
+                            const std::filesystem::path &cache_dir) {
   std::error_code ec;
   for (const auto &format : formats) {
     const auto path = cachePathFor(info, format, cache_dir);
@@ -357,12 +360,10 @@ std::filesystem::path LibraryPage::cachedSongPath(
   return {};
 }
 
-std::filesystem::path LibraryPage::cacheSongFile(
-  const SongInfo &info,
-  const std::string_view url,
-  const qqmusic_api::song::SongFileFormat &format,
-  const std::filesystem::path &cache_dir
-) {
+std::filesystem::path LibraryPage::cacheSongFile(const SongInfo &info,
+                                                 const std::string_view url,
+                                                 const qqmusic_api::song::SongFileFormat &format,
+                                                 const std::filesystem::path &cache_dir) {
   if (url.empty()) {
     return {};
   }
@@ -508,14 +509,16 @@ void LibraryPage::playSong(const SongItem *item) {
 
 // 检查是否需要加载更多歌曲
 void LibraryPage::checkLoadMore(const float scrollOffset) {
-  if (loading_ || !has_more) return;
+  if (loading_ || !has_more)
+    return;
 
   const auto n = static_cast<int>(items_->children().size());
-  if (n == 0) return;
+  if (n == 0)
+    return;
 
   constexpr float kSongItemHeight = 68.0f;
   const int bottom_index =
-    static_cast<int>((scrollOffset + items_->contentHeight()) / kSongItemHeight);
+      static_cast<int>((scrollOffset + items_->contentHeight()) / kSongItemHeight);
 
   if (n - bottom_index <= 5) {
     loadMore();
@@ -532,7 +535,7 @@ void LibraryPage::loadMore() {
   const int current_offset = offset_;
   thread_manager->addTask([this, current_offset] {
     const auto res =
-      qqmusic_api::playlist::get_user_playlists_detail(tid_, current_offset, 30).req_1.data;
+        qqmusic_api::playlist::get_user_playlists_detail(tid_, current_offset, 30).req_1.data;
     if (res.songlist.empty()) {
       has_more = false;
       loading_ = false;

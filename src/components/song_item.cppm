@@ -41,6 +41,8 @@ static constexpr float kRowHeight = 68.0f;        // 行高
 static constexpr float kPadH = 10.0f;             // 左右内边距
 static constexpr float kIndexWidth = 28.0f;       // 序号区宽度
 static constexpr float kGap = 12.0f;              // 元素间距
+static constexpr float kColumnGap = 28.0f;        // 歌曲信息与专辑间距
+static constexpr float kSongInfoRatio = 0.52f;    // 歌曲信息区占比
 static constexpr float kDurationWidth = 48.0f;    // 时长区宽度
 static constexpr float kActionWidth = 72.0f;      // 操作按钮区宽度
 static constexpr float kActionRightInset = 32.0f; // 操作区距离滚动条的安全间距
@@ -79,9 +81,9 @@ public:
   [[nodiscard]] bool isSelected() const { return selected_; }
 
   /** 获取歌曲信息 */
-  [[nodiscard]] const SongInfo& info() const { return info_; }
+  [[nodiscard]] const SongInfo &info() const { return info_; }
 
-  Signal<SongItem*> doubleClicked; // 双击信号
+  Signal<SongItem *> doubleClicked; // 双击信号
 
 protected:
   /** 鼠标悬浮进入 */
@@ -125,6 +127,7 @@ private:
   float cover_radius = kCoverRadius; // 封面圆角
   RenderText title_text;             // 标题
   RenderText artist_text;            // 歌手
+  RenderText album_text;             // 专辑名
   RenderText duration_text;          // 时长
   RenderBackground hover_bg;         // 行背景（覆盖整行）
   float hover_radius = 12.0f;        // 行背景圆角
@@ -133,7 +136,7 @@ private:
   sk_sp<SkImage> cover_image{};      // 专辑封面图片
 
   // --- 交互状态 ---
-  bool is_playing = false;           // 是否播放中
+  bool is_playing = false; // 是否播放中
 
   bool is_hovering = false;          // 是否悬浮中
   bool is_pressed = false;           // 是否正在被按下
@@ -148,19 +151,15 @@ private:
   float like_t = 0.0f;   // 喜欢按钮弹性反馈
 };
 
-SongItem::SongItem(const int index,
-                   SongInfo info,
-                   const bool is_playing,
-                   Widget *parent) :
-  Widget(parent), index_text(std::to_string(index + 1)), cover_bg(),
-  cover_svg("resources/svg/play.svg"), title_text(info.title), artist_text(info.artist),
-  duration_text(info.duration), info_(std::move(info)), is_playing(is_playing) {
+SongItem::SongItem(const int index, SongInfo info, const bool is_playing, Widget *parent)
+    : Widget(parent), index_text(std::to_string(index + 1)), cover_bg(),
+      cover_svg("resources/svg/play.svg"), title_text(info.title), artist_text(info.artist),
+      album_text(info.album_name), duration_text(info.duration), info_(std::move(info)),
+      is_playing(is_playing) {
   constexpr SkColor palette[] = {
-    ColorFromARGB(255, 255, 99, 132),
-    ColorFromARGB(255, 42, 140, 233),
-    ColorFromARGB(255, 16, 178, 180),
-    ColorFromARGB(255, 245, 155, 54),
-    ColorFromARGB(255, 128, 111, 232),
+      ColorFromARGB(255, 255, 99, 132),  ColorFromARGB(255, 42, 140, 233),
+      ColorFromARGB(255, 16, 178, 180),  ColorFromARGB(255, 245, 155, 54),
+      ColorFromARGB(255, 128, 111, 232),
   };
   cover_color = palette[static_cast<std::size_t>(index) % std::size(palette)];
 
@@ -185,6 +184,11 @@ SongItem::SongItem(const int index,
   artist_text.setFontSize(12.5f);
   artist_text.setColor(kArtistColor);
   artist_text.setAlignment(Alignment::TopLeft);
+
+  // 专辑
+  album_text.setFontSize(12.5f);
+  album_text.setColor(kMutedColor);
+  album_text.setAlignment(Alignment::CenterLeft);
 
   // 时长
   duration_text.setFontSize(12.5f);
@@ -227,12 +231,8 @@ bool SongItem::drawCoverImage(SkCanvas *canvas) const {
 
   canvas->save();
   canvas->clipRRect(SkRRect::MakeRectXY(cover_rect, radius, radius), true);
-  canvas->drawImageRect(
-    cover_image,
-    cover_rect,
-    SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kLinear),
-    nullptr
-  );
+  canvas->drawImageRect(cover_image, cover_rect,
+                        SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kLinear), nullptr);
   canvas->restore();
   return true;
 }
@@ -322,7 +322,8 @@ void SongItem::onMouseMove(float x, float y) {
 }
 
 void SongItem::setSelected(const bool value) {
-  if (selected_ == value) return;
+  if (selected_ == value)
+    return;
   selected_ = value;
   startAnimation(select_t, value ? 1.0f : 0.0f, 250.0f, &select_t, CubicBezier::EaseOut());
 }
@@ -347,7 +348,8 @@ void SongItem::layoutChildren() {
   const auto rect = contentRect();
 
   // 行背景
-  hover_bg.update(SkRect::MakeXYWH(0.0f, 0.0f, std::max(0.0f, rect.width() - kHoverRightInset), rect.height()));
+  hover_bg.update(
+      SkRect::MakeXYWH(0.0f, 0.0f, std::max(0.0f, rect.width() - kHoverRightInset), rect.height()));
 
   // 序号区
   index_text.update(SkRect::MakeXYWH(kPadH, 0, kIndexWidth, rect.height()));
@@ -364,7 +366,14 @@ void SongItem::layoutChildren() {
 
   // 文字区：封面右边间隔 kGap
   constexpr float text_x = cover_x + kCoverSize + kGap;
-  const float text_w = action_x - kGap - text_x;
+
+  // 时长：操作按钮区左侧
+  constexpr float duration_w = kDurationWidth;
+  const float duration_x = action_x - duration_w;
+  const float content_w = std::max(0.0f, duration_x - kGap - text_x);
+  const float song_info_w = std::max(0.0f, content_w * kSongInfoRatio - kColumnGap);
+  const float album_x = text_x + song_info_w + kColumnGap;
+  const float album_w = std::max(0.0f, duration_x - kGap - album_x);
 
   // 标题/歌手：围绕行高中心分布
   constexpr float kTitleHeight = 19.0f;
@@ -372,15 +381,12 @@ void SongItem::layoutChildren() {
   constexpr float kTextGap = 5.0f;
   constexpr float kTextBlockHeight = kTitleHeight + kTextGap + kArtistHeight;
   constexpr float kTitleY = (kRowHeight - kTextBlockHeight) * 0.5f;
-  title_text.update(SkRect::MakeXYWH(text_x, kTitleY, text_w, kTitleHeight));
+  title_text.update(SkRect::MakeXYWH(text_x, kTitleY, song_info_w, kTitleHeight));
+  album_text.update(SkRect::MakeXYWH(album_x, 0.0f, album_w, rect.height()));
 
   // 歌手：标题下方
   constexpr float kArtistY = kTitleY + kTitleHeight + kTextGap;
-  artist_text.update(SkRect::MakeXYWH(text_x, kArtistY, text_w, kArtistHeight));
-
-  // 时长：操作按钮区左侧
-  constexpr float duration_w = kDurationWidth;
-  const float duration_x = action_x - duration_w;
+  artist_text.update(SkRect::MakeXYWH(text_x, kArtistY, song_info_w, kArtistHeight));
   duration_text.update(SkRect::MakeXYWH(duration_x, 0, duration_w, rect.height()));
 }
 
@@ -409,7 +415,8 @@ void SongItem::paint(SkCanvas *canvas) {
     glow_layer.setImageFilter(SkImageFilters::Blur(sigma, sigma, nullptr));
     SkPaint glow;
     glow.setAntiAlias(true);
-    glow.setColor(ColorFromARGB(static_cast<U8CPU>(10.0f * std::max(hover_t, select_t)), 18, 28, 44));
+    glow.setColor(
+        ColorFromARGB(static_cast<U8CPU>(10.0f * std::max(hover_t, select_t)), 18, 28, 44));
     canvas->saveLayer(&layer_bounds, &glow_layer);
     canvas->drawRoundRect(glow_rect, hover_radius, hover_radius, glow);
     canvas->restore();
@@ -423,13 +430,16 @@ void SongItem::paint(SkCanvas *canvas) {
     coverShine.setColor(ColorFromARGB(52, 255, 255, 255));
     constexpr float cover_x = kPadH + kIndexWidth + kGap;
     constexpr float cover_y = (kRowHeight - kCoverSize) * 0.5f;
-    canvas->drawRoundRect(SkRect::MakeXYWH(cover_x + 2.0f, cover_y + 2.0f, kCoverSize - 4.0f, kCoverSize * 0.42f),kCoverRadius - 2.0f, kCoverRadius - 2.0f, coverShine);
+    canvas->drawRoundRect(
+        SkRect::MakeXYWH(cover_x + 2.0f, cover_y + 2.0f, kCoverSize - 4.0f, kCoverSize * 0.42f),
+        kCoverRadius - 2.0f, kCoverRadius - 2.0f, coverShine);
     cover_svg.render(canvas);
   }
   canvas->restore();
 
   index_text.render(canvas);
   title_text.render(canvas);
+  album_text.render(canvas);
   artist_text.render(canvas);
   duration_text.render(canvas);
 
