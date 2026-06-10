@@ -168,7 +168,7 @@ public:
 LibraryPage::LibraryPage(Widget *parent) : Widget(parent) {
   setLayout<VBoxLayout<Widget>>();
   layout()->setSpacing(8);
-  setPadding(Insets(28, 24, 34, 24));
+  setPadding(Insets(28, 24, 34, 12));
 
   const auto title = new Text("音乐库", this);
   title->setFontSize(30);
