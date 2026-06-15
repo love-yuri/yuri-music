@@ -112,7 +112,7 @@ private:
   Box *sidebar_ = nullptr;                     // 左侧菜单面板
   PageView *page_view = nullptr;               // 页面容器
   components::PlayerBar *player_bar = nullptr; // 底部播放栏
-  pages::LibraryPage *library_page = nullptr;  // 音乐库页面
+  pages::FavoritesPage *favorites_page = nullptr; // 我喜欢页面
   std::uint64_t last_playback_sync_us = 0;      // 上次 BASS 状态采样时间
 
   std::unordered_map<std::string, MenuButton *> menu_buttons; // 菜单按钮集合
@@ -206,13 +206,13 @@ void MainWindow::setupPages() {
   page_view->addPage("browse", new pages::BrowsePage(page_view));
   page_view->addPage("search", new pages::SearchPage(page_view));
 
-  library_page = new pages::LibraryPage(page_view);
-  library_page->songSelected.connect<&MainWindow::onSongSelected>(this);
-  library_page->playbackStateChanged.connect<&MainWindow::onPlaybackStateChanged>(this);
-  library_page->loadingStateChanged.connect<&MainWindow::onLoadingStateChanged>(this);
-  page_view->addPage("library", library_page);
+  page_view->addPage("library", new pages::LibraryPage(page_view));
 
-  page_view->addPage("favorites", new pages::FavoritesPage(page_view));
+  favorites_page = new pages::FavoritesPage(page_view);
+  favorites_page->songSelected.connect<&MainWindow::onSongSelected>(this);
+  favorites_page->playbackStateChanged.connect<&MainWindow::onPlaybackStateChanged>(this);
+  favorites_page->loadingStateChanged.connect<&MainWindow::onLoadingStateChanged>(this);
+  page_view->addPage("favorites", favorites_page);
   page_view->addPage("recent", new pages::RecentPage(page_view));
   page_view->addPage("settings", new pages::SettingsPage(page_view));
 }
@@ -239,8 +239,8 @@ void MainWindow::onVolumeChanged(const float volume) {
 }
 
 void MainWindow::onPreviousClicked() const {
-  if (library_page != nullptr) {
-    library_page->playPrevious();
+  if (favorites_page != nullptr) {
+    favorites_page->playPrevious();
   }
 }
 
@@ -251,8 +251,8 @@ void MainWindow::onPlayPauseClicked() const {
 }
 
 void MainWindow::onNextClicked() const {
-  if (library_page != nullptr) {
-    library_page->playNext();
+  if (favorites_page != nullptr) {
+    favorites_page->playNext();
   }
 }
 
