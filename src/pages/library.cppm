@@ -1,6 +1,8 @@
 //
 // Created by yuri on 2026/2/7.
 //
+module;
+#include <filesystem>
 export module pages:library;
 
 import std;
