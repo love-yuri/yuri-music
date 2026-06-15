@@ -113,7 +113,7 @@ private:
    */
   static std::filesystem::path cachePathFor(const SongInfo &info,
                                             const qqmusic_api::song::SongFileFormat &format,
-                                            const std::filesystem::path &cache_dir = "musics");
+                                            const std::filesystem::path &cache_dir = std::filesystem::path("musics"));
 
   /**
    * 查找已存在的歌曲缓存。
@@ -125,7 +125,7 @@ private:
   static std::filesystem::path
   cachedSongPath(const SongInfo &info,
                  const std::vector<qqmusic_api::song::SongFileFormat> &formats,
-                 const std::filesystem::path &cache_dir = "musics");
+                 const std::filesystem::path &cache_dir = std::filesystem::path("musics"));
 
   /**
    * 将已解析的歌曲 URL 保存到本地缓存。
@@ -138,7 +138,7 @@ private:
   static std::filesystem::path cacheSongFile(const SongInfo &info,
                                              std::string_view url,
                                              const qqmusic_api::song::SongFileFormat &format,
-                                             const std::filesystem::path &cache_dir = "musics");
+                                             const std::filesystem::path &cache_dir = std::filesystem::path("musics"));
 
   /**
    * 判断当前选中歌曲是否仍然是指定 mid。
