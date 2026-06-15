@@ -5,8 +5,8 @@ Language: Cpp
 # 访问说明符(public、private等)的偏移
 AccessModifierOffset: -2
 
-# 开括号(开圆括号、开尖括号、开方括号)后的对齐: Align, DontAlign, AlwaysBreak(总是在开括号后换行)
-AlignAfterOpenBracket: true
+# 开括号(开圆括号、开尖括号、开方括号)后的对齐: Align, DontAlign, AlwaysBreak(总是在开括号后换行), BlockIndent
+AlignAfterOpenBracket: BlockIndent
 
 # 连续赋值时，对齐所有等号
 AlignConsecutiveAssignments: false
@@ -44,7 +44,7 @@ AllowShortIfStatementsOnASingleLine: true
 # 允许短的循环保持在同一行
 AllowShortLoopsOnASingleLine: true
 
-# 总是在返回类型后换行: None, All, TopLevel(顶级函数，不包括在类中的函数), 
+# 总是在返回类型后换行: None, All, TopLevel(顶级函数，不包括在类中的函数),
 # AllDefinitions(所有的定义，不包括声明), TopLevelDefinitions(所有的顶级函数的定义)
 AlwaysBreakAfterReturnType: None
 
@@ -55,7 +55,7 @@ AlwaysBreakBeforeMultilineStrings: true
 BreakTemplateDeclarations: "Yes"
 
 # false表示函数实参要么都在同一行，要么都各自一行
-BinPackArguments: true
+BinPackArguments: false
 
 # false表示所有形参要么都在同一行，要么都各自一行
 BinPackParameters: false
