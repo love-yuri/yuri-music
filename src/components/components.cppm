@@ -9,3 +9,4 @@ export import :section_header;
 export import :song_item;
 export import :quick_card;
 export import :player_bar;
+export import :user_profile_card;

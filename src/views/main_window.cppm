@@ -110,6 +110,7 @@ private:
 
   Splitter *splitter_ = nullptr;               // 主分栏
   Box *sidebar_ = nullptr;                     // 左侧菜单面板
+  components::UserProfileCard *profile_card_ = nullptr; // 侧栏个人资料
   PageView *page_view = nullptr;               // 页面容器
   components::PlayerBar *player_bar = nullptr; // 底部播放栏
   pages::FavoritesPage *favorites_page = nullptr; // 我喜欢页面
@@ -172,6 +173,8 @@ void MainWindow::layoutChildren() {
 }
 
 void MainWindow::setupSidebar() {
+  profile_card_ = new components::UserProfileCard(true, sidebar_);
+
   struct MenuItem {
     std::string id;
     std::string label;
@@ -285,6 +288,7 @@ void MainWindow::onMenuClicked(const std::string &id) {
 
 void MainWindow::render(SkCanvas *canvas) {
   syncPlaybackState();
+  models::userProfileStore().refreshAsync();
 
   canvas->clear(kWindowBg);
 
@@ -310,3 +314,4 @@ void MainWindow::render(SkCanvas *canvas) {
 
   Widget::render(canvas);
 }
+
