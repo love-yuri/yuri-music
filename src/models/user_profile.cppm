@@ -10,108 +10,15 @@ import yuri_log;
 
 namespace {
 
-std::string trimCookiePart(std::string_view value) {
-  while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front()))) {
-    value.remove_prefix(1);
-  }
-  while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) {
-    value.remove_suffix(1);
-  }
-  return std::string(value);
+bool isUserInfoSuccess(const qqmusic_api::user::UserInfoResult &user_info) {
+  return user_info.code == 0 && user_info.subcode == 0;
 }
 
-std::string cookieValue(std::string_view cookie, std::string_view name) {
-  std::size_t pos = 0;
-  while (pos < cookie.size()) {
-    const auto end = cookie.find(';', pos);
-    const auto part = cookie.substr(pos, end == std::string_view::npos ? cookie.size() - pos : end - pos);
-    const auto eq = part.find('=');
-    if (eq != std::string_view::npos) {
-      const auto key = trimCookiePart(part.substr(0, eq));
-      if (key == name) {
-        return trimCookiePart(part.substr(eq + 1));
-      }
-    }
-
-    if (end == std::string_view::npos) {
-      break;
-    }
-    pos = end + 1;
-  }
-  return {};
-}
-
-int hexValue(char ch) {
-  if (ch >= '0' && ch <= '9') {
-    return ch - '0';
-  }
-  if (ch >= 'a' && ch <= 'f') {
-    return ch - 'a' + 10;
-  }
-  if (ch >= 'A' && ch <= 'F') {
-    return ch - 'A' + 10;
-  }
-  return -1;
-}
-
-std::string percentDecode(std::string_view value) {
-  std::string decoded;
-  decoded.reserve(value.size());
-  for (std::size_t i = 0; i < value.size(); ++i) {
-    if (value[i] == '%' && i + 2 < value.size()) {
-      const int hi = hexValue(value[i + 1]);
-      const int lo = hexValue(value[i + 2]);
-      if (hi >= 0 && lo >= 0) {
-        decoded.push_back(static_cast<char>((hi << 4) | lo));
-        i += 2;
-        continue;
-      }
-    }
-    decoded.push_back(value[i] == '+' ? ' ' : value[i]);
-  }
-  return decoded;
-}
-
-std::string firstUtf8Char(std::string_view text) {
-  if (text.empty()) {
-    return {};
-  }
-  const auto ch = static_cast<unsigned char>(text.front());
-  std::size_t size = 1;
-  if ((ch & 0b1110'0000) == 0b1100'0000) {
-    size = 2;
-  } else if ((ch & 0b1111'0000) == 0b1110'0000) {
-    size = 3;
-  } else if ((ch & 0b1111'1000) == 0b1111'0000) {
-    size = 4;
-  }
-  return std::string(text.substr(0, std::min(size, text.size())));
-}
-
-std::string nicknameFromCookie(std::string_view cookie) {
-  for (const std::string_view key : {"qqmusic_nick", "nickname", "nick", "wxnickname"}) {
-    if (auto value = cookieValue(cookie, key); !value.empty()) {
-      return percentDecode(value);
-    }
-  }
-  return {};
-}
-
-std::string profileDisplayName() {
-  if (auto nickname = nicknameFromCookie(qqmusic_api_config.cookie); !nickname.empty()) {
-    return nickname;
+std::string displayNameFrom(const qqmusic_api::user::UserInfoResult &user_info) {
+  if (!user_info.data.creator.nick.empty()) {
+    return user_info.data.creator.nick;
   }
   return "QQ 音乐用户";
-}
-
-std::string profileAvatarLabel(const std::string &display_name) {
-  if (display_name.empty()) {
-    return "音";
-  }
-  if (display_name == "QQ 音乐用户") {
-    return "音";
-  }
-  return firstUtf8Char(display_name);
 }
 
 } // namespace
@@ -119,14 +26,11 @@ std::string profileAvatarLabel(const std::string &display_name) {
 export namespace models {
 
 struct UserProfile {
-  bool logged_in = false;        // 是否拥有可用登录态
-  bool loading = false;          // 是否正在刷新远端资料
-  std::string qq{};              // QQ 号
-  std::string display_name{};    // 展示名称
-  std::string status_text{};     // 登录/错误状态
-  std::string avatar_label{};    // 头像文字
-  int playlist_count = 0;        // 歌单数量
-  int song_count = 0;            // 歌单歌曲合计
+  bool logged_in = false;                            // 是否拥有可用登录态
+  bool loading = false;                              // 是否正在验证登录态
+  std::string display_name = "未登录";               // 展示名称
+  std::string status_text = "登录后显示 QQ 音乐昵称"; // 登录/错误状态
+  std::string avatar_url{};                          // 头像链接
 };
 
 class UserProfileStore {
@@ -136,33 +40,18 @@ public:
     return profile_;
   }
 
-  void refreshAsync(bool force = false) {
+  void refreshAsync(const bool force = false) {
     const auto key = currentConfigKey();
-    if (!qqmusic_api_config.has_login || qqmusic_api_config.qq.empty() || qqmusic_api_config.cookie.empty()) {
-      std::lock_guard lock(mutex_);
-      if (force || profile_.logged_in || profile_.loading || loaded_key_ != key) {
-        profile_ = {};
-        profile_.display_name = "未登录";
-        profile_.status_text = "登录后显示 QQ 音乐个人信息";
-        profile_.avatar_label = "未";
-        loaded_key_ = key;
-      }
+    if (!qqmusic_api_config.has_login || qqmusic_api_config.cookie.empty()) {
+      setLoggedOut(key, "登录后显示 QQ 音乐昵称");
       return;
     }
 
-    const auto display_name = profileDisplayName();
     {
       std::lock_guard lock(mutex_);
       if (!force && loaded_key_ == key && !profile_.loading) {
         return;
       }
-      profile_.loading = true;
-      profile_.logged_in = true;
-      profile_.qq = qqmusic_api_config.qq;
-      profile_.display_name = display_name;
-      profile_.status_text = std::format("QQ {}", qqmusic_api_config.qq);
-      profile_.avatar_label = profileAvatarLabel(display_name);
-      loaded_key_ = key;
     }
 
     bool expected = false;
@@ -170,25 +59,31 @@ public:
       return;
     }
 
-    thread_manager->addTask([this, key, display_name] {
-      UserProfile next;
-      next.logged_in = true;
-      next.qq = qqmusic_api_config.qq;
-      next.display_name = display_name;
-      next.status_text = std::format("QQ {}", next.qq);
-      next.avatar_label = profileAvatarLabel(display_name);
+    {
+      std::lock_guard lock(mutex_);
+      profile_.loading = true;
+      profile_.status_text = "正在验证 QQ 音乐登录状态";
+      loaded_key_ = key;
+    }
 
+    thread_manager->addTask([this, key] {
+      UserProfile next;
       try {
-        const auto playlists = qqmusic_api::playlist::get_user_playlists(50);
-        next.playlist_count = playlists.data.totoal > 0
-                                ? playlists.data.totoal
-                                : static_cast<int>(playlists.data.disslist.size());
-        for (const auto &playlist : playlists.data.disslist) {
-          next.song_count += std::max(0, playlist.song_cnt);
+        const auto user_info = qqmusic_api::user::get_user_info();
+        if (isUserInfoSuccess(user_info)) {
+          qqmusic_api_config.has_login = true;
+          next.logged_in = true;
+          next.display_name = displayNameFrom(user_info);
+          next.avatar_url = user_info.data.creator.headpic;
+          next.status_text = "";
+        } else {
+          qqmusic_api_config.has_login = false;
+          next.status_text = "登录状态已失效，请重新登录";
         }
       } catch (const std::exception &e) {
-        next.status_text = "个人信息读取失败，请稍后刷新";
-        yuri::warn("刷新 QQ 音乐个人信息失败: {}", e.what());
+        qqmusic_api_config.has_login = false;
+        next.status_text = "登录状态验证失败，请稍后重试";
+        yuri::warn("验证 QQ 音乐登录状态失败: {}", e.what());
       }
 
       {
@@ -204,7 +99,14 @@ public:
 
 private:
   static std::string currentConfigKey() {
-    return std::format("{}:{}", qqmusic_api_config.qq, std::hash<std::string>{}(qqmusic_api_config.cookie));
+    return std::format("{}", std::hash<std::string>{}(qqmusic_api_config.cookie));
+  }
+
+  void setLoggedOut(const std::string &key, const std::string &status_text) {
+    std::lock_guard lock(mutex_);
+    profile_ = {};
+    profile_.status_text = status_text;
+    loaded_key_ = key;
   }
 
   mutable std::mutex mutex_{};

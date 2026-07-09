@@ -9,6 +9,7 @@ import skia;
 import webview2;
 import components;
 import models;
+import qq_music_api;
 
 using namespace ui::layout;
 using namespace ui::widgets;
@@ -96,7 +97,10 @@ void LibraryPage::paint(SkCanvas *canvas) {
 
 void LibraryPage::openQqMusicLogin() {
   const auto profile = models::userProfileStore().snapshot();
-  if (!profile.logged_in) {
+  if (profile.loading) {
+    return;
+  }
+  if (!profile.logged_in && (!qqmusic_api_config.has_login || qqmusic_api_config.cookie.empty())) {
     webview2::launchQqMusicLogin();
   }
   models::userProfileStore().refreshAsync(true);
@@ -104,6 +108,10 @@ void LibraryPage::openQqMusicLogin() {
 
 void LibraryPage::updateLoginButtonText() {
   const auto profile = models::userProfileStore().snapshot();
+  if (profile.loading) {
+    login_button->text().setText("验证登录中");
+    return;
+  }
   login_button->text().setText(profile.logged_in ? "刷新个人信息" : "登录 QQ 音乐");
 }
 
