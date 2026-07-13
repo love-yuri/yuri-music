@@ -101,6 +101,9 @@ protected:
   /** 鼠标松开 */
   void onMouseLeftReleased(float x, float y) override;
 
+  /** 鼠标右键按下 */
+  void onMouseRightPressed(float x, float y) override;
+
 private:
   /** 根据各动画通道合成最终背景色 */
   [[nodiscard]] SkColor computeBackgroundColor() const noexcept;
@@ -138,10 +141,11 @@ private:
   // --- 交互状态 ---
   bool is_playing = false; // 是否播放中
 
-  bool is_hovering = false;          // 是否悬浮中
-  bool is_pressed = false;           // 是否正在被按下
-  bool selected_ = false;            // 是否被选中
-  std::uint64_t last_click_time = 0; // 上次点击时间
+  bool is_hovering = false;            // 是否悬浮中
+  bool is_pressed = false;             // 是否正在被按下
+  bool selected_ = false;              // 是否被选中
+  std::uint64_t last_click_time = 0;   // 上次点击时间
+  ContextMenu *context_menu = nullptr; // 当前歌曲对应的右键菜单
 
   // --- 动画进度（独立通道，互不干扰） ---
   float hover_t = 0.0f;  // 悬浮渐入 [0,1]
@@ -282,6 +286,16 @@ void SongItem::onMouseLeftPressed(float, float) {
   is_pressed = true;
   // 按下效果快速响应
   startAnimation(press_t, 1.0f, 80.0f, &press_t, CubicBezier::EaseOut());
+}
+
+void SongItem::onMouseRightPressed(float, float) {
+  if (context_menu == nullptr) {
+    context_menu = new ContextMenu({
+      ContextMenuItem("评论"),
+      ContextMenuItem("下一首播放")
+    }, this);
+  }
+  context_menu->popupAtCursor();
 }
 
 void SongItem::onMouseLeftReleased(float x, float y) {
