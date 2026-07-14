@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-修改本文件请同步需改 Agents.md
+修改本文件请同步需改 CLAUDE.md
 
 ## Build Commands
 
@@ -46,11 +46,11 @@ configuration (is_debug_mode, vulkan constants)
 - **glfw** — Window creation + Vulkan surface + swapchain + per-frame resources (`render_frame`, `WindowContext`). `glfw::Window` inherits `ui::widgets::Widget` and runs the main loop (acquire → update → layout → render → present → poll)
 - **skia** — Re-exports Skia types via module barrier; `create_surface()` wraps Vulkan images into SkSurface; `SkPaintBuilder` fluent API; font/color resources
 - **ui** — The main framework:
-  - **widgets/** — `Widget` base class: parent-child tree, mouse event hit-testing/propagation, layout dirty flags, animation integration via `startAnimation<T>()`. Components: `Box`, `Button`, `Text`, `Splitter`
-  - **layout/** — `Layout<Widget>` template (friend of Widget, calls `setGeometry()`). HBox/VBox distribute equally. `Alignment` is bitmask-based. `LayoutDirty` propagates up the tree
-  - **render/** — `RenderNode` base → `RenderBackground`, `RenderBorder`, `RenderText`, `RenderSvg`. Widget owns render nodes, calls them during `paint()`
-  - **animation/** — `IAnimation` interface, `LinearAnimation<T>` / `BezierAnimation<T>` (requires `CanLerp` concept). Global `AnimationManager` singleton updates per frame
-  - **algorithm/** — Generic `lerp<T>()` with `SkColor` specialization (HSV interpolation)
+    - **widgets/** — `Widget` base class: parent-child tree, mouse event hit-testing/propagation, layout dirty flags, animation integration via `startAnimation<T>()`. Components: `Box`, `Button`, `Text`, `Splitter`
+    - **layout/** — `Layout<Widget>` template (friend of Widget, calls `setGeometry()`). HBox/VBox distribute equally. `Alignment` is bitmask-based. `LayoutDirty` propagates up the tree
+    - **render/** — `RenderNode` base → `RenderBackground`, `RenderBorder`, `RenderText`, `RenderSvg`. Widget owns render nodes, calls them during `paint()`
+    - **animation/** — `IAnimation` interface, `LinearAnimation<T>` / `BezierAnimation<T>` (requires `CanLerp` concept). Global `AnimationManager` singleton updates per frame
+    - **algorithm/** — Generic `lerp<T>()` with `SkColor` specialization (HSV interpolation)
 
 ### Key Design Patterns
 
