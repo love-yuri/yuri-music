@@ -5,4 +5,5 @@ build/
 .vs/
 .cache/
 .claude/
-libs/bass24
+libs/bass24/*
+!libs/bass24/.gitkeep
