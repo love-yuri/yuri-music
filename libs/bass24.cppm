@@ -9,7 +9,7 @@ export module bass24;
 import std;
 import core;
 
-export namespace bass24 {
+namespace bass24 {
 
 struct PlaybackState {
   bool has_stream{};
@@ -21,6 +21,8 @@ struct PlaybackState {
 
 class BassPlayer {
 public:
+  Signal<> finished; // 播放完成事件
+
   /**
    * 创建播放器实例。
    */
@@ -139,6 +141,21 @@ private:
   bool loadFlacPlugin();
 
   /**
+   * 为当前播放流注册自然播放完成同步事件。
+   * @return 注册成功时返回 true，否则返回 false
+   */
+  bool installEndSync();
+
+  /**
+   * 接收 BASS 播放完成同步事件。
+   * @param handle BASS 同步事件句柄
+   * @param channel 已完成播放的流句柄
+   * @param data BASS 同步事件附加数据
+   * @param user 播放器实例指针
+   */
+  static void CALLBACK onPlaybackEnded(HSYNC handle, DWORD channel, DWORD data, void *user);
+
+  /**
    * 从当前播放流刷新总时长缓存。
    */
   void updateDurationSeconds();
@@ -150,6 +167,7 @@ private:
 
   mutable std::mutex mutex_{};          // 保护 BASS 句柄和播放器状态
   HSTREAM stream_{};                    // 当前播放流句柄，0 表示未打开
+  HSYNC end_sync{};                     // 当前播放完成同步事件句柄
   HPLUGIN flac_plugin{};                // BASSFLAC 插件句柄
   bool initialized_{ false };           // BASS 设备和插件是否已初始化
   float volume_{ 1.0f };                // 当前音量，范围 0..1
@@ -185,6 +203,10 @@ bool BassPlayer::playUrl(const std::string_view url) {
 
   BASS_ChannelSetAttribute(stream_, BASS_ATTRIB_VOL, volume_);
   updateDurationSeconds();
+  if (!installEndSync()) {
+    releaseStream();
+    return false;
+  }
 
   if (!BASS_ChannelPlay(stream_, TRUE)) {
     yuri::error("BASS 网络流播放失败: error={}", BASS_ErrorGetCode());
@@ -225,6 +247,10 @@ bool BassPlayer::play(const std::filesystem::path &path) {
 
   BASS_ChannelSetAttribute(stream_, BASS_ATTRIB_VOL, volume_);
   updateDurationSeconds();
+  if (!installEndSync()) {
+    releaseStream();
+    return false;
+  }
 
   if (!BASS_ChannelPlay(stream_, TRUE)) {
     yuri::error("BASS 播放失败: {}, error={}", path.string(), BASS_ErrorGetCode());
@@ -394,6 +420,25 @@ bool BassPlayer::loadFlacPlugin() {
   return true;
 }
 
+bool BassPlayer::installEndSync() {
+  constexpr DWORD kEndSyncType = BASS_SYNC_END | BASS_SYNC_ONETIME; // 单次播放完成事件
+  end_sync = BASS_ChannelSetSync(stream_, kEndSyncType, 0, &BassPlayer::onPlaybackEnded, this);
+  if (end_sync == 0) {
+    yuri::error("BASS 注册播放完成事件失败: error={}", BASS_ErrorGetCode());
+    return false;
+  }
+  return true;
+}
+
+void CALLBACK BassPlayer::onPlaybackEnded(const HSYNC, const DWORD channel, const DWORD, void *const user) {
+  if (user == nullptr) {
+    return;
+  }
+
+  auto *const player = static_cast<BassPlayer *>(user);
+  player->finished.emit();
+}
+
 void BassPlayer::updateDurationSeconds() {
   duration_seconds = 0.0;
   const auto len = BASS_ChannelGetLength(stream_, BASS_POS_BYTE);
@@ -404,6 +449,10 @@ void BassPlayer::updateDurationSeconds() {
 
 void BassPlayer::releaseStream() {
   if (stream_ != 0) {
+    if (end_sync != 0) {
+      BASS_ChannelRemoveSync(stream_, end_sync);
+      end_sync = 0;
+    }
     BASS_ChannelStop(stream_);
     BASS_StreamFree(stream_);
     stream_ = 0;
@@ -415,5 +464,8 @@ BassPlayer &player() {
   static BassPlayer instance;
   return instance;
 }
+
+// 导出player
+export BassPlayer bass24_player;
 
 } // namespace bass24

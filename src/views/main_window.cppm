@@ -108,13 +108,13 @@ private:
   void onNextClicked() const;
   void syncPlaybackState();
 
-  Splitter *splitter_ = nullptr;               // 主分栏
-  Box *sidebar_ = nullptr;                     // 左侧菜单面板
+  Splitter *splitter_ = nullptr;                        // 主分栏
+  Box *sidebar_ = nullptr;                              // 左侧菜单面板
   components::UserProfileCard *profile_card_ = nullptr; // 侧栏个人资料
-  PageView *page_view = nullptr;               // 页面容器
-  components::PlayerBar *player_bar = nullptr; // 底部播放栏
-  pages::FavoritesPage *favorites_page = nullptr; // 我喜欢页面
-  std::uint64_t last_playback_sync_us = 0;      // 上次 BASS 状态采样时间
+  PageView *page_view = nullptr;                        // 页面容器
+  components::PlayerBar *player_bar = nullptr;          // 底部播放栏
+  pages::FavoritesPage *favorites_page = nullptr;       // 我喜欢页面
+  std::uint64_t last_playback_sync_us = 0;              // 上次 BASS 状态采样时间
 
   std::unordered_map<std::string, MenuButton *> menu_buttons; // 菜单按钮集合
 
@@ -149,6 +149,7 @@ MainWindow::MainWindow() : Window(1024, 700) {
   player_bar->nextClicked.connect<&MainWindow::onNextClicked>(this);
   player_bar->seekRequested.connect<&MainWindow::onSeekRequested>(this);
   player_bar->volumeChanged.connect<&MainWindow::onVolumeChanged>(this);
+  bass24::bass24_player.finished.connect<&MainWindow::onNextClicked>(this);
 
   setupSidebar();
   setupPages();
@@ -233,12 +234,14 @@ void MainWindow::onLoadingStateChanged(const bool loading) const {
   player_bar->setLoading(loading);
 }
 
+// ReSharper disable once CppMemberFunctionMayBeStatic
 void MainWindow::onSeekRequested(const double ratio) {
-  bass24::player().seekRatio(ratio);
+  void(bass24::bass24_player.seekRatio(ratio));
 }
 
+// ReSharper disable once CppMemberFunctionMayBeStatic
 void MainWindow::onVolumeChanged(const float volume) {
-  bass24::player().setVolume(volume);
+  bass24::bass24_player.setVolume(volume);
 }
 
 void MainWindow::onPreviousClicked() const {
@@ -248,8 +251,8 @@ void MainWindow::onPreviousClicked() const {
 }
 
 void MainWindow::onPlayPauseClicked() const {
-  if (bass24::player().togglePause()) {
-    player_bar->setPlaying(bass24::player().playing());
+  if (bass24::bass24_player.togglePause()) {
+    player_bar->setPlaying(bass24::bass24_player.playing());
   }
 }
 
@@ -270,11 +273,11 @@ void MainWindow::syncPlaybackState() {
   }
   last_playback_sync_us = now;
 
-  const auto state = bass24::player().state();
-  player_bar->setVolume(state.volume);
-  player_bar->setPlaying(state.playing);
-  if (state.has_stream) {
-    player_bar->setPlaybackPosition(state.position_seconds, state.duration_seconds);
+  const auto [has_stream, playing, position_seconds, duration_seconds, volume] = bass24::bass24_player.state();
+  player_bar->setVolume(volume);
+  player_bar->setPlaying(playing);
+  if (has_stream) {
+    player_bar->setPlaybackPosition(position_seconds, duration_seconds);
   }
 }
 

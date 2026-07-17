@@ -436,13 +436,13 @@ void FavoritesPage::playSong(const SongItem *item) {
   if (const auto path = cachedSongPath(info, formats); !path.empty()) {
     yuri::info("使用本地音乐缓存播放: {}", path.string());
     loadingStateChanged.emit(false);
-    if (bass24::player().play(path)) {
+    if (bass24::bass24_player.play(path)) {
       playbackStateChanged.emit(true);
     }
     return;
   }
 
-  bass24::player().stop();
+  bass24::bass24_player.stop();
   playbackStateChanged.emit(false);
 
   {
@@ -493,7 +493,7 @@ void FavoritesPage::playSong(const SongItem *item) {
         should_play = selected_mid == song.mid;
       }
       if (should_play) {
-        if (bass24::player().playUrl(url)) {
+        if (bass24::bass24_player.playUrl(url)) {
           playbackStateChanged.emit(true);
           yuri::info("流式播放: {}", song.title);
           cleanup();
