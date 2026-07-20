@@ -9,6 +9,8 @@ import skia;
 import webview2;
 import components;
 import models;
+import store;
+import thread_pool;
 import qq_music_api;
 
 using namespace ui::layout;
@@ -19,12 +21,13 @@ using namespace skia;
 export namespace pages {
 
 class LibraryPage : public Widget {
-
 public:
   /**
    * 创建音乐库页面。
    */
   explicit LibraryPage(Widget *parent = nullptr);
+
+  ~LibraryPage() override;
 
   /**
    * 更新标题、个人资料卡和登录按钮布局。
@@ -37,22 +40,25 @@ public:
   void paint(SkCanvas *canvas) override;
 
 private:
-  RenderText render_text{"音乐库"};              // 字体节点
-  RenderText subtitle_text{"QQ 音乐个人资料"}; // 副标题
-  components::UserProfileCard *profile_card{};  // 个人资料卡
+  RenderText render_text{ "音乐库" };            // 字体节点
+  RenderText subtitle_text{ "QQ 音乐个人资料" }; // 副标题
+  components::UserProfileCard *profile_card{};   // 个人资料卡
   Button *login_button{};                        // QQ 音乐登录按钮
 
   /**
    * 打开 QQ 音乐登录窗口。
    */
   void openQqMusicLogin();
-  void updateLoginButtonText();
+
+  /**
+   * 更新登录按钮文本
+   */
+  void updateLoginButtonText() const;
 };
 
-LibraryPage::LibraryPage(Widget *parent)
-    : Widget(parent),
-      profile_card(new components::UserProfileCard(false, this)),
-      login_button(new Button("登录 QQ 音乐", this)) {
+LibraryPage::LibraryPage(Widget *parent) :
+  Widget(parent), profile_card(new components::UserProfileCard(false, this)),
+  login_button(new Button("登录 QQ 音乐", this)) {
   render_text.setAlignment(Alignment::Center);
   render_text.setColor(skia_colors::black);
   render_text.setFontSize(24);
@@ -67,11 +73,14 @@ LibraryPage::LibraryPage(Widget *parent)
   login_button->border().setWidth(0.0f);
   login_button->text().setColor(skia_colors::white);
   login_button->clicked.connect<&LibraryPage::openQqMusicLogin>(this);
+  store::user_profile_store.status_changed.connect<&LibraryPage::updateLoginButtonText>(this);
+}
+
+LibraryPage::~LibraryPage() {
+  store::user_profile_store.status_changed.disconnect(this);
 }
 
 void LibraryPage::layoutChildren() {
-  updateLoginButtonText();
-
   const float card_w = std::min(520.0f, std::max(280.0f, width_ - 72.0f));
   constexpr float card_h = 214.0f;
   const float button_w = std::min(180.0f, std::max(120.0f, width_ - 56.0f));
@@ -95,24 +104,17 @@ void LibraryPage::paint(SkCanvas *canvas) {
   subtitle_text.render(canvas);
 }
 
+// ReSharper disable once CppMemberFunctionMayBeStatic
 void LibraryPage::openQqMusicLogin() {
-  const auto profile = models::userProfileStore().snapshot();
-  if (profile.loading) {
-    return;
-  }
-  if (!profile.logged_in && (!qqmusic_api_config.has_login || qqmusic_api_config.cookie.empty())) {
-    webview2::launchQqMusicLogin();
-  }
-  models::userProfileStore().refreshAsync(true);
+  thread_manager->addTask([] {
+    webview2::launchQQMusicLogin();
+    store::user_profile_store.reload();
+  });
 }
 
-void LibraryPage::updateLoginButtonText() {
-  const auto profile = models::userProfileStore().snapshot();
-  if (profile.loading) {
-    login_button->text().setText("验证登录中");
-    return;
-  }
-  login_button->text().setText(profile.logged_in ? "刷新个人信息" : "登录 QQ 音乐");
+void LibraryPage::updateLoginButtonText() const {
+  const auto &profile = store::user_profile_store;
+  login_button->text().setText(profile.loggedIn() ? "刷新个人信息" : "登录 QQ 音乐");
 }
 
 } // namespace pages

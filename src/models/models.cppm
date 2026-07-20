@@ -5,4 +5,3 @@
 export module models;
 
 export import :song;
-export import :user_profile;

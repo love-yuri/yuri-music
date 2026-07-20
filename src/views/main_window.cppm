@@ -98,7 +98,7 @@ private:
   // 处理菜单点击切页
   void onMenuClicked(const std::string &id);
   // 处理歌曲选中并显示播放栏
-  void onSongSelected(const SongInfo& info) const;
+  void onSongSelected(const SongInfo &info) const;
   void onPlaybackStateChanged(bool playing) const;
   void onLoadingStateChanged(bool loading) const;
   void onSeekRequested(double ratio);
@@ -221,7 +221,7 @@ void MainWindow::setupPages() {
   page_view->addPage("settings", new pages::SettingsPage(page_view));
 }
 
-void MainWindow::onSongSelected(const SongInfo& info) const {
+void MainWindow::onSongSelected(const SongInfo &info) const {
   player_bar->updateSong(info);
   player_bar->show();
 }
@@ -273,7 +273,8 @@ void MainWindow::syncPlaybackState() {
   }
   last_playback_sync_us = now;
 
-  const auto [has_stream, playing, position_seconds, duration_seconds, volume] = bass24::bass24_player.state();
+  const auto [has_stream, playing, position_seconds, duration_seconds, volume] =
+    bass24::bass24_player.state();
   player_bar->setVolume(volume);
   player_bar->setPlaying(playing);
   if (has_stream) {
@@ -291,7 +292,6 @@ void MainWindow::onMenuClicked(const std::string &id) {
 
 void MainWindow::render(SkCanvas *canvas) {
   syncPlaybackState();
-  models::userProfileStore().refreshAsync();
 
   canvas->clear(kWindowBg);
 
@@ -305,7 +305,9 @@ void MainWindow::render(SkCanvas *canvas) {
 
   drawBlurredOval(canvas, SkRect::MakeXYWH(-120.0f, -92.0f, 430.0f, 260.0f), kGlowRose, 42.0f);
   drawBlurredOval(canvas, SkRect::MakeXYWH(w - 320.0f, 48.0f, 420.0f, 260.0f), kGlowCyan, 48.0f);
-  drawBlurredOval(canvas, SkRect::MakeXYWH(w * 0.28f, h - 160.0f, 360.0f, 220.0f), kGlowAmber, 46.0f);
+  drawBlurredOval(
+    canvas, SkRect::MakeXYWH(w * 0.28f, h - 160.0f, 360.0f, 220.0f), kGlowAmber, 46.0f
+  );
 
   SkPaint grain;
   grain.setAntiAlias(true);
@@ -317,4 +319,3 @@ void MainWindow::render(SkCanvas *canvas) {
 
   Widget::render(canvas);
 }
-

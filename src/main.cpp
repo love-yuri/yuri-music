@@ -7,8 +7,6 @@ import qq_music_api;
 import core;
 
 int main() {
-  qqmusic_api_config.loginFromFile();
-
   MainWindow window;
   window.show();
 }

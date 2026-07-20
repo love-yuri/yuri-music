@@ -92,7 +92,7 @@ export namespace webview2 {
 /**
  * 启动 QQ 音乐登录 WebView2 窗口。
  */
-void launchQqMusicLogin();
+void launchQQMusicLogin();
 
 } // namespace webview2
 
@@ -422,14 +422,17 @@ void runQqMusicLoginWebView() {
 
 export namespace webview2 {
 
-void launchQqMusicLogin() {
+/**
+ * 启动qq音乐登录创库
+ */
+void launchQQMusicLogin() {
 #ifdef _WIN32
   bool expected = false;
   if (!login_window_open.compare_exchange_strong(expected, true)) {
     return;
   }
 
-  std::thread(runQqMusicLoginWebView).detach();
+  runQqMusicLoginWebView();
 #else
   yuri::warn("QQ 音乐 WebView2 登录窗口仅支持 Windows");
 #endif
