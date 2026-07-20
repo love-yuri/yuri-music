@@ -103,7 +103,7 @@ UserProfileCard::UserProfileCard(const bool compact, Widget *parent) :
   }
 
   user_profile_store.status_changed.connect<&UserProfileCard::updateTextNodes>(this);
-  user_profile_store.reload();
+  updateTextNodes();
 }
 
 UserProfileCard::~UserProfileCard() {
