@@ -90,6 +90,10 @@ public:
   // 布局侧栏、页面和底部播放栏
   void layoutChildren() override;
 
+protected:
+  /** 点击音量浮层外部时关闭浮层。 */
+  void onMouseLeftReleased(float x, float y) override;
+
 private:
   // 创建左侧菜单
   void setupSidebar();
@@ -103,23 +107,29 @@ private:
   void onLoadingStateChanged(bool loading) const;
   void onSeekRequested(double ratio);
   void onVolumeChanged(float volume);
+  /** 同步播放器栏切换后的随机播放状态。 */
+  void onPlaybackModeChanged(bool random) const;
+  /** 打开或关闭竖向音量浮层。 */
+  void onVolumeButtonClicked();
   void onPreviousClicked() const;
   void onPlayPauseClicked() const;
   void onNextClicked() const;
   void syncPlaybackState();
 
-  Splitter *splitter_ = nullptr;                        // 主分栏
-  Box *sidebar_ = nullptr;                              // 左侧菜单面板
-  components::UserProfileCard *profile_card_ = nullptr; // 侧栏个人资料
-  PageView *page_view = nullptr;                        // 页面容器
-  components::PlayerBar *player_bar = nullptr;          // 底部播放栏
-  pages::FavoritesPage *favorites_page = nullptr;       // 我喜欢页面
-  std::uint64_t last_playback_sync_us = 0;              // 上次 BASS 状态采样时间
+  Splitter *splitter_ = nullptr;                         // 主分栏
+  Box *sidebar_ = nullptr;                               // 左侧菜单面板
+  components::UserProfileCard *profile_card_ = nullptr;  // 侧栏个人资料
+  PageView *page_view = nullptr;                         // 页面容器
+  components::PlayerBar *player_bar = nullptr;           // 底部播放栏
+  components::VolumeSliderPopup *volume_popup = nullptr; // 竖向音量浮层
+  pages::FavoritesPage *favorites_page = nullptr;        // 我喜欢页面
+  std::uint64_t last_playback_sync_us = 0;               // 上次 BASS 状态采样时间
 
   std::unordered_map<std::string, MenuButton *> menu_buttons; // 菜单按钮集合
 
   // 播放器底栏高度
   static constexpr float kPlayerBarHeight = 86.0f;
+  static constexpr float kVolumePopupOverlap = 14.0f;
   // 各菜单项对应的 SVG 图标路径
   static constexpr auto home_svg = "resources/svg/home.svg";
   static constexpr auto browse_svg = "resources/svg/browse.svg";
@@ -148,7 +158,12 @@ MainWindow::MainWindow() : Window(1024, 700) {
   player_bar->playPauseClicked.connect<&MainWindow::onPlayPauseClicked>(this);
   player_bar->nextClicked.connect<&MainWindow::onNextClicked>(this);
   player_bar->seekRequested.connect<&MainWindow::onSeekRequested>(this);
-  player_bar->volumeChanged.connect<&MainWindow::onVolumeChanged>(this);
+  player_bar->playbackModeChanged.connect<&MainWindow::onPlaybackModeChanged>(this);
+  player_bar->volumeButtonClicked.connect<&MainWindow::onVolumeButtonClicked>(this);
+
+  volume_popup = new components::VolumeSliderPopup(this);
+  volume_popup->setVisible(false);
+  volume_popup->volume_changed.connect<&MainWindow::onVolumeChanged>(this);
   bass24::bass24_player.finished.connect<&MainWindow::onNextClicked>(this);
 
   setupSidebar();
@@ -170,7 +185,33 @@ void MainWindow::layoutChildren() {
   if (player_bar->showing()) {
     player_bar->setGeometry(0, main_h, w, bar_h);
     player_bar->updateLayout();
+
+    if (volume_popup->visible()) {
+      constexpr float popup_w = components::VolumeSliderPopup::kPreferredWidth;
+      constexpr float popup_h = components::VolumeSliderPopup::kPreferredHeight;
+      const float popup_x = std::round(player_bar->volumeButtonCenterX() - popup_w * 0.5f);
+      const float popup_y = std::round(main_h - popup_h + kVolumePopupOverlap);
+      volume_popup->setGeometry(popup_x, popup_y, popup_w, popup_h);
+      volume_popup->updateLayout();
+    }
   }
+}
+
+void MainWindow::onMouseLeftReleased(const float x, const float y) {
+  if (volume_popup == nullptr || player_bar == nullptr || !volume_popup->visible()) {
+    return;
+  }
+
+  const bool inside_popup = volume_popup->contains(x, y);
+  const bool inside_volume_button =
+    player_bar->volumeButtonContains(x - player_bar->x(), y - player_bar->y());
+  if (inside_popup || inside_volume_button) {
+    return;
+  }
+
+  volume_popup->setVisible(false);
+  player_bar->setVolumePopupVisible(false);
+  markLayoutDirty();
 }
 
 void MainWindow::setupSidebar() {
@@ -242,6 +283,21 @@ void MainWindow::onSeekRequested(const double ratio) {
 // ReSharper disable once CppMemberFunctionMayBeStatic
 void MainWindow::onVolumeChanged(const float volume) {
   bass24::bass24_player.setVolume(volume);
+  player_bar->setVolume(volume);
+  volume_popup->setVolume(volume);
+}
+
+void MainWindow::onPlaybackModeChanged(const bool random) const {
+  if (favorites_page != nullptr) {
+    favorites_page->setRandomPlayback(random);
+  }
+}
+
+void MainWindow::onVolumeButtonClicked() {
+  const bool visible = !volume_popup->visible();
+  volume_popup->setVisible(visible);
+  player_bar->setVolumePopupVisible(visible);
+  markLayoutDirty();
 }
 
 void MainWindow::onPreviousClicked() const {
@@ -276,6 +332,7 @@ void MainWindow::syncPlaybackState() {
   const auto [has_stream, playing, position_seconds, duration_seconds, volume] =
     bass24::bass24_player.state();
   player_bar->setVolume(volume);
+  volume_popup->setVolume(volume);
   player_bar->setPlaying(playing);
   if (has_stream) {
     player_bar->setPlaybackPosition(position_seconds, duration_seconds);
