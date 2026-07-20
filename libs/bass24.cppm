@@ -194,8 +194,9 @@ bool BassPlayer::playUrl(const std::string_view url) {
   releaseStream();
 
   const std::string url_string(url);
-  stream_ = BASS_StreamCreateURL(url_string.c_str(), 0, BASS_STREAM_BLOCK | BASS_STREAM_STATUS,
-                                 nullptr, nullptr);
+  stream_ = BASS_StreamCreateURL(
+    url_string.c_str(), 0, BASS_STREAM_BLOCK | BASS_STREAM_STATUS, nullptr, nullptr
+  );
   if (stream_ == 0) {
     yuri::error("BASS 创建网络播放流失败: error={}", BASS_ErrorGetCode());
     return false;
@@ -386,8 +387,9 @@ bool BassPlayer::ensureInitialized() {
     return true;
   }
 
-  BASS_SetConfigPtr(BASS_CONFIG_NET_AGENT,
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+  BASS_SetConfigPtr(
+    BASS_CONFIG_NET_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+  );
   BASS_SetConfig(BASS_CONFIG_NET_TIMEOUT, 8000);
   BASS_SetConfig(BASS_CONFIG_NET_READTIMEOUT, 8000);
   BASS_SetConfig(BASS_CONFIG_NET_BUFFER, 5000);
@@ -430,7 +432,8 @@ bool BassPlayer::installEndSync() {
   return true;
 }
 
-void CALLBACK BassPlayer::onPlaybackEnded(const HSYNC, const DWORD channel, const DWORD, void *const user) {
+void CALLBACK
+BassPlayer::onPlaybackEnded(const HSYNC, const DWORD channel, const DWORD, void *const user) {
   if (user == nullptr) {
     return;
   }
@@ -458,11 +461,6 @@ void BassPlayer::releaseStream() {
     stream_ = 0;
   }
   duration_seconds = 0.0;
-}
-
-BassPlayer &player() {
-  static BassPlayer instance;
-  return instance;
 }
 
 // 导出player
