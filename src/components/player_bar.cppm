@@ -8,7 +8,6 @@ import ui;
 import skia;
 import core;
 import qq_music_api;
-import thread_pool;
 import models;
 
 using namespace ui::render;

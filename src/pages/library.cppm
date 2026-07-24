@@ -10,7 +10,7 @@ import webview2;
 import components;
 import models;
 import store;
-import thread_pool;
+import core;
 import qq_music_api;
 
 using namespace ui::layout;

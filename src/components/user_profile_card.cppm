@@ -11,8 +11,8 @@ import std;
 import ui;
 import skia;
 import models;
+import core;
 import qq_music_api;
-import thread_pool;
 import store;
 
 using namespace ui::layout;

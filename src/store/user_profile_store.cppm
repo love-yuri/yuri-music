@@ -4,7 +4,6 @@
 export module store:user_profile_store;
 
 import std;
-import thread_pool;
 import qq_music_api;
 import core;
 import yuri_log;

@@ -9,7 +9,6 @@ import core;
 import skia;
 import glfw.api;
 import qq_music_api;
-import thread_pool;
 import vulkan.context;
 import models;
 
