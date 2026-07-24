@@ -21,14 +21,21 @@ using namespace ui::widgets;
 using namespace ui::layout;
 using namespace ui::render;
 
-constexpr SkColor kWindowBg = ColorFromARGB(255, 238, 243, 249);
-constexpr SkColor kSidebarFill = ColorFromARGB(104, 255, 255, 255);
-constexpr SkColor kGlowRose = ColorFromARGB(58, 255, 82, 132);
-constexpr SkColor kGlowCyan = ColorFromARGB(46, 38, 189, 220);
-constexpr SkColor kGlowAmber = ColorFromARGB(34, 255, 184, 84);
-constexpr std::uint64_t kPlaybackSyncIntervalUs = 100000;
+constexpr SkColor kWindowBg = ColorFromARGB(255, 238, 243, 249);    // 窗口背景色
+constexpr SkColor kSidebarFill = ColorFromARGB(104, 255, 255, 255); // 侧栏填充色
+constexpr SkColor kGlowRose = ColorFromARGB(58, 255, 82, 132);      // 玫红柔光色
+constexpr SkColor kGlowCyan = ColorFromARGB(46, 38, 189, 220);      // 青色柔光色
+constexpr SkColor kGlowAmber = ColorFromARGB(34, 255, 184, 84);     // 琥珀柔光色
+constexpr std::uint64_t kPlaybackSyncIntervalUs = 100000;           // 播放状态同步间隔
 
-// 绘制带边界的柔光椭圆
+/**
+ * 绘制带边界的柔光椭圆。
+ *
+ * @param canvas 目标画布。
+ * @param rect 椭圆边界。
+ * @param color 填充颜色。
+ * @param sigma 模糊半径。
+ */
 void drawBlurredOval(SkCanvas *canvas, const SkRect &rect, SkColor color, float sigma);
 
 // 左侧整块背景面板
@@ -36,7 +43,11 @@ class SidebarSurface : public Box {
 public:
   using Box::Box;
 
-  // 绘制侧栏背景
+  /**
+   * 绘制侧栏背景。
+   *
+   * @param canvas 目标画布。
+   */
   void paint(SkCanvas *canvas) override;
 };
 
@@ -45,12 +56,21 @@ class MusicSplitter : public Splitter {
 public:
   using Splitter::Splitter;
 
-  // 绘制分栏拖拽区域
+  /**
+   * 保留分栏拖拽区域且不绘制分隔线。
+   *
+   * @param canvas 目标画布。
+   */
   void paint(SkCanvas *canvas) override;
 };
 
-void drawBlurredOval(SkCanvas *canvas, const SkRect &rect, SkColor color, float sigma) {
-  auto bounds = rect.makeOutset(sigma * 3.0f, sigma * 3.0f);
+void drawBlurredOval(
+  SkCanvas *const canvas,
+  const SkRect &rect,
+  const SkColor color,
+  const float sigma
+) {
+  const auto bounds = rect.makeOutset(sigma * 3.0f, sigma * 3.0f);
   SkPaint layer;
   layer.setImageFilter(SkImageFilters::Blur(sigma, sigma, nullptr));
 
@@ -58,12 +78,13 @@ void drawBlurredOval(SkCanvas *canvas, const SkRect &rect, SkColor color, float 
   fill.setAntiAlias(true);
   fill.setColor(color);
 
+  // 使用独立图层限制模糊范围，避免柔光影响其他绘制内容
   canvas->saveLayer(&bounds, &layer);
   canvas->drawOval(rect, fill);
   canvas->restore();
 }
 
-void SidebarSurface::paint(SkCanvas *canvas) {
+void SidebarSurface::paint(SkCanvas *const canvas) {
   SkPaint fill;
   fill.setAntiAlias(true);
   fill.setColor(kSidebarFill);
@@ -75,7 +96,7 @@ void SidebarSurface::paint(SkCanvas *canvas) {
   canvas->drawRect(SkRect::MakeXYWH(width_ - 1.0f, 0.0f, 1.0f, height_), edge);
 }
 
-void MusicSplitter::paint(SkCanvas *) {
+void MusicSplitter::paint(SkCanvas *const) {
   // 保留拖拽命中区域，视觉上不绘制桌面分隔线
 }
 
@@ -83,42 +104,102 @@ export class MainWindow : public Window {
   using Window::Window;
 
 public:
-  // 创建主窗口和页面结构
+  /** 创建主窗口和页面结构。 */
   MainWindow();
-  // 渲染窗口背景和子控件
+
+  /**
+   * 渲染窗口背景和子控件。
+   *
+   * @param canvas 目标画布。
+   */
   void render(SkCanvas *canvas) final;
-  // 布局侧栏、页面和底部播放栏
+
+  /** 布局侧栏、页面和底部播放栏。 */
   void layoutChildren() override;
 
 protected:
-  /** 点击音量浮层外部时关闭浮层。 */
+  /**
+   * 点击音量浮层外部时关闭浮层。
+   *
+   * @param x 鼠标相对窗口的横坐标。
+   * @param y 鼠标相对窗口的纵坐标。
+   */
   void onMouseLeftReleased(float x, float y) override;
 
 private:
-  // 创建左侧菜单
+  /** 创建左侧菜单。 */
   void setupSidebar();
-  // 创建右侧页面
+
+  /** 创建右侧页面。 */
   void setupPages();
-  // 处理菜单点击切页
+
+  /**
+   * 处理菜单点击并切换页面。
+   *
+   * @param id 目标菜单标识。
+   */
   void onMenuClicked(const std::string &id);
-  // 处理歌曲选中并显示播放栏
+
+  /**
+   * 处理歌曲选中并显示播放栏。
+   *
+   * @param info 选中的歌曲信息。
+   */
   void onSongSelected(const SongInfo &info) const;
+
+  /**
+   * 同步播放状态到播放栏。
+   *
+   * @param playing 是否正在播放。
+   */
   void onPlaybackStateChanged(bool playing) const;
+
+  /**
+   * 同步加载状态到播放栏。
+   *
+   * @param loading 是否正在加载。
+   */
   void onLoadingStateChanged(bool loading) const;
+
+  /**
+   * 跳转到指定播放进度。
+   *
+   * @param ratio 目标播放进度比例。
+   */
   void onSeekRequested(double ratio);
-  void onVolumeChanged(float volume);
-  /** 同步播放器栏切换后的随机播放状态。 */
+
+  /**
+   * 更新播放器音量。
+   *
+   * @param volume 目标音量。
+   */
+  void onVolumeChanged(float volume) const;
+
+  /**
+   * 同步播放器栏切换后的随机播放状态。
+   *
+   * @param random 是否启用随机播放。
+   */
   void onPlaybackModeChanged(bool random) const;
+
   /** 打开或关闭竖向音量浮层。 */
   void onVolumeButtonClicked();
+
+  /** 播放上一首歌曲。 */
   void onPreviousClicked() const;
+
+  /** 切换播放或暂停状态。 */
   void onPlayPauseClicked() const;
+
+  /** 播放下一首歌曲。 */
   void onNextClicked() const;
+
+  /** 定期同步底层播放器状态。 */
   void syncPlaybackState();
 
   Splitter *splitter_ = nullptr;                         // 主分栏
   Box *sidebar_ = nullptr;                               // 左侧菜单面板
-  components::UserProfileCard *profile_card_ = nullptr;  // 侧栏个人资料
+  components::UserProfileCard *profile_card = nullptr;   // 侧栏个人资料
   PageView *page_view = nullptr;                         // 页面容器
   components::PlayerBar *player_bar = nullptr;           // 底部播放栏
   components::VolumeSliderPopup *volume_popup = nullptr; // 竖向音量浮层
@@ -127,17 +208,15 @@ private:
 
   std::unordered_map<std::string, MenuButton *> menu_buttons; // 菜单按钮集合
 
-  // 播放器底栏高度
-  static constexpr float kPlayerBarHeight = 86.0f;
-  static constexpr float kVolumePopupOverlap = 14.0f;
-  // 各菜单项对应的 SVG 图标路径
-  static constexpr auto home_svg = "resources/svg/home.svg";
-  static constexpr auto browse_svg = "resources/svg/browse.svg";
-  static constexpr auto search_svg = "resources/svg/search.svg";
-  static constexpr auto library_svg = "resources/svg/library.svg";
-  static constexpr auto favorites_svg = "resources/svg/favorites.svg";
-  static constexpr auto recent_svg = "resources/svg/recent.svg";
-  static constexpr auto settings_svg = "resources/svg/settings.svg";
+  static constexpr float kPlayerBarHeight = 86.0f;                     // 播放器底栏高度
+  static constexpr float kVolumePopupOverlap = 14.0f;                  // 音量浮层重叠距离
+  static constexpr auto kHomeSvg = "resources/svg/home.svg";           // 首页图标路径
+  static constexpr auto kBrowseSvg = "resources/svg/browse.svg";       // 浏览图标路径
+  static constexpr auto kSearchSvg = "resources/svg/search.svg";       // 搜索图标路径
+  static constexpr auto kLibrarySvg = "resources/svg/library.svg";     // 音乐库图标路径
+  static constexpr auto kFavoritesSvg = "resources/svg/favorites.svg"; // 我喜欢图标路径
+  static constexpr auto kRecentSvg = "resources/svg/recent.svg";       // 最近播放图标路径
+  static constexpr auto kSettingsSvg = "resources/svg/settings.svg";   // 设置图标路径
 };
 
 MainWindow::MainWindow() : Window(1024, 700) {
@@ -187,11 +266,11 @@ void MainWindow::layoutChildren() {
     player_bar->updateLayout();
 
     if (volume_popup->visible()) {
-      constexpr float popup_w = components::VolumeSliderPopup::kPreferredWidth;
-      constexpr float popup_h = components::VolumeSliderPopup::kPreferredHeight;
-      const float popup_x = std::round(player_bar->volumeButtonCenterX() - popup_w * 0.5f);
-      const float popup_y = std::round(main_h - popup_h + kVolumePopupOverlap);
-      volume_popup->setGeometry(popup_x, popup_y, popup_w, popup_h);
+      constexpr float kPopupWidth = components::VolumeSliderPopup::kPreferredWidth;
+      constexpr float kPopupHeight = components::VolumeSliderPopup::kPreferredHeight;
+      const float popup_x = std::round(player_bar->volumeButtonCenterX() - kPopupWidth * 0.5f);
+      const float popup_y = std::round(main_h - kPopupHeight + kVolumePopupOverlap);
+      volume_popup->setGeometry(popup_x, popup_y, kPopupWidth, kPopupHeight);
       volume_popup->updateLayout();
     }
   }
@@ -215,30 +294,30 @@ void MainWindow::onMouseLeftReleased(const float x, const float y) {
 }
 
 void MainWindow::setupSidebar() {
-  profile_card_ = new components::UserProfileCard(true, sidebar_);
+  profile_card = new components::UserProfileCard(true, sidebar_);
 
   struct MenuItem {
-    std::string id;
-    std::string label;
-    std::string_view icon;
+    std::string id;        // 菜单标识
+    std::string label;     // 菜单文本
+    std::string_view icon; // 图标路径
   };
 
   const std::vector<MenuItem> items = {
-    { "home", "首页", home_svg },
-    { "browse", "浏览", browse_svg },
-    { "search", "搜索", search_svg },
-    { "library", "音乐库", library_svg },
-    { "favorites", "我喜欢", favorites_svg },
-    { "recent", "最近播放", recent_svg },
-    { "settings", "设置", settings_svg },
+    { "home", "首页", kHomeSvg },
+    { "browse", "浏览", kBrowseSvg },
+    { "search", "搜索", kSearchSvg },
+    { "library", "音乐库", kLibrarySvg },
+    { "favorites", "我喜欢", kFavoritesSvg },
+    { "recent", "最近播放", kRecentSvg },
+    { "settings", "设置", kSettingsSvg },
   };
 
   for (const auto &[id, label, icon] : items) {
-    auto *btn = new MenuButton(label, icon, sidebar_);
-    btn->setId(id);
-    btn->clicked.connect<&MainWindow::onMenuClicked>(this);
-    btn->setMaxHeight(50);
-    menu_buttons[id] = btn;
+    auto *const button = new MenuButton(label, icon, sidebar_);
+    button->setId(id);
+    button->clicked.connect<&MainWindow::onMenuClicked>(this);
+    button->setMaxHeight(50);
+    menu_buttons[id] = button;
   }
 }
 
@@ -281,7 +360,7 @@ void MainWindow::onSeekRequested(const double ratio) {
 }
 
 // ReSharper disable once CppMemberFunctionMayBeStatic
-void MainWindow::onVolumeChanged(const float volume) {
+void MainWindow::onVolumeChanged(const float volume) const {
   bass24::bass24_player.setVolume(volume);
   player_bar->setVolume(volume);
   volume_popup->setVolume(volume);
@@ -324,6 +403,7 @@ void MainWindow::syncPlaybackState() {
   }
 
   const auto now = profiling::frame_clock.now;
+  // 限制 BASS 状态采样频率，避免每帧触发底层查询
   if (last_playback_sync_us != 0 && now - last_playback_sync_us < kPlaybackSyncIntervalUs) {
     return;
   }
@@ -342,12 +422,12 @@ void MainWindow::syncPlaybackState() {
 void MainWindow::onMenuClicked(const std::string &id) {
   page_view->showPage(id);
 
-  for (auto &[mid, btn] : menu_buttons) {
-    btn->setActive(mid == id);
+  for (const auto &[menu_id, button] : menu_buttons) {
+    button->setActive(menu_id == id);
   }
 }
 
-void MainWindow::render(SkCanvas *canvas) {
+void MainWindow::render(SkCanvas *const canvas) {
   syncPlaybackState();
 
   canvas->clear(kWindowBg);
