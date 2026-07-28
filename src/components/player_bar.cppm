@@ -120,8 +120,7 @@ void drawNextIcon(SkCanvas *c, float cx, float cy, const SkPaint &p);
  * 绘制播放方式图标。
  * @param c Skia 画布
  * @param cx 图标中心 X 坐标
- * @param
- * cy 图标中心 Y 坐标
+ * @param cy 图标中心 Y 坐标
  * @param random 是否绘制随机播放图标
  * @param p 画笔
  */
@@ -255,11 +254,16 @@ public:
   void setLoading(bool value) noexcept;
 
   /**
-   * 更新播放进度。
-   * @param position_seconds 当前播放位置（秒）
-   * @param duration_seconds 歌曲总时长（秒）
+   * 设置当前歌曲总时长。
+   * @param value_seconds 歌曲总时长（秒）
    */
-  void setPlaybackPosition(double position_seconds, double duration_seconds);
+  void setPlaybackDuration(double value_seconds);
+
+  /**
+   * 更新播放位置。
+   * @param position_seconds 当前播放位置（秒）
+   */
+  void setPlaybackPosition(double position_seconds);
 
   /**
    * 设置音量。
@@ -630,14 +634,29 @@ void PlayerBar::setLoading(const bool value) noexcept {
   markLayoutDirty();
 }
 
-void PlayerBar::setPlaybackPosition(const double position_seconds, double duration_seconds) {
+void PlayerBar::setPlaybackDuration(const double value_seconds) {
+  const double next_duration = std::max(0.0, value_seconds);
+  const int next_display_second = static_cast<int>(std::lround(next_duration));
+  bool changed = std::abs(duration_seconds - next_duration) > 0.001;
+  duration_seconds = next_duration;
+
+  if (duration_display_second != next_display_second) {
+    duration_display_second = next_display_second;
+    time_right.setText(formatTime(duration_display_second));
+    changed = true;
+  }
+
+  if (changed) {
+    markLayoutDirty();
+  }
+}
+
+void PlayerBar::setPlaybackPosition(const double position_seconds) {
   const double safe_position = std::max(0.0, position_seconds);
-  const double safe_duration = std::max(0.0, duration_seconds);
-  const double effective_duration = safe_duration > 0.001 ? safe_duration : this->duration_seconds;
   const float next_progress =
-    effective_duration > 0.001 ?
-      static_cast<float>(std::clamp(safe_position / effective_duration, 0.0, 1.0)) :
-      progress_;
+    duration_seconds > 0.001 ?
+      static_cast<float>(std::clamp(safe_position / duration_seconds, 0.0, 1.0)) :
+      0.0f;
 
   bool changed = std::abs(progress_ - next_progress) > 0.001f;
   progress_ = next_progress;
@@ -649,16 +668,6 @@ void PlayerBar::setPlaybackPosition(const double position_seconds, double durati
     elapsed_display_seconds = elapsed_seconds;
     time_left.setText(formatTime(elapsed_seconds));
     changed = true;
-  }
-
-  if (safe_duration > 0.001) {
-    this->duration_seconds = safe_duration;
-    duration_seconds = static_cast<int>(std::lround(safe_duration));
-    if (duration_seconds != duration_display_second) {
-      duration_display_second = static_cast<int>(duration_seconds);
-      time_right.setText(formatTime(duration_seconds));
-      changed = true;
-    }
   }
 
   if (changed) {

@@ -178,8 +178,6 @@ private:
 
 public:
   Signal<const SongInfo &> songSelected{}; // 歌曲选中信号
-  Signal<bool> playbackStateChanged{};     // 播放状态变化信号
-  Signal<bool> loadingStateChanged{};      // 当前歌曲加载状态变化信号
 };
 
 FavoritesPage::FavoritesPage(Widget *parent) : Widget(parent) {
@@ -428,7 +426,7 @@ std::filesystem::path FavoritesPage::cacheSongFile(
     return {};
   }
 
-  const auto path = cachePathFor(info, format, cache_dir);
+  auto path = cachePathFor(info, format, cache_dir);
   if (std::filesystem::exists(path, ec) && !ec) {
     return path;
   }
@@ -486,26 +484,21 @@ void FavoritesPage::playSong(const SongItem *item) {
   const auto formats = preferredFormats(info);
   if (const auto path = cachedSongPath(info, formats); !path.empty()) {
     yuri::info("使用本地音乐缓存播放: {}", path.string());
-    loadingStateChanged.emit(false);
-    if (bass24::bass24_player.play(path)) {
-      playbackStateChanged.emit(true);
-    }
+    void(bass24::bass24_player.play(path));
     return;
   }
 
   bass24::bass24_player.stop();
-  playbackStateChanged.emit(false);
+  bass24::bass24_player.beginLoading();
 
   {
     std::lock_guard lock(loading_mutex);
     if (loading_mids.contains(info.mid)) {
-      loadingStateChanged.emit(true);
       return;
     }
     loading_mids.insert(info.mid);
   }
 
-  loadingStateChanged.emit(true);
   thread_manager->addTask([this, song = info, formats] {
     bool cleaned = false;
     const auto cleanup = [this, mid = song.mid, &cleaned] {
@@ -516,9 +509,6 @@ void FavoritesPage::playSong(const SongItem *item) {
       {
         std::lock_guard lock(loading_mutex);
         loading_mids.erase(mid);
-      }
-      if (isSelectedMid(mid)) {
-        loadingStateChanged.emit(false);
       }
     };
 
@@ -535,6 +525,9 @@ void FavoritesPage::playSong(const SongItem *item) {
       if (url.empty()) {
         yuri::error("获取歌曲下载链接失败: {}", song.title);
         cleanup();
+        if (isSelectedMid(song.mid)) {
+          bass24::bass24_player.stop();
+        }
         return;
       }
 
@@ -545,7 +538,6 @@ void FavoritesPage::playSong(const SongItem *item) {
       }
       if (should_play) {
         if (bass24::bass24_player.playUrl(url)) {
-          playbackStateChanged.emit(true);
           yuri::info("流式播放: {}", song.title);
           cleanup();
           cacheSongFile(song, url, source_format);
@@ -557,6 +549,9 @@ void FavoritesPage::playSong(const SongItem *item) {
     }
 
     cleanup();
+    if (isSelectedMid(song.mid)) {
+      bass24::bass24_player.stop();
+    }
   });
 }
 

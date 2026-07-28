@@ -11,17 +11,20 @@ import core;
 
 namespace bass24 {
 
-struct PlaybackState {
-  bool has_stream{};
-  bool playing{};
-  double position_seconds{};
-  double duration_seconds{};
-  float volume{ 1.0f };
+export enum class PlaybackState {
+  stopped,   // 已停止
+  loading,   // 正在加载或解析播放流
+  buffering, // 播放流正在等待数据
+  playing,   // 正在播放
+  paused,    // 已暂停
 };
 
 class BassPlayer {
 public:
-  Signal<> finished; // 播放完成事件
+  Signal<PlaybackState> stateChanged; // 播放状态变化事件
+  Signal<double> durationChanged;     // 当前歌曲总时长变化事件
+  Signal<float> volumeChanged;        // 音量变化事件
+  Signal<> finished;                  // 自然播放完成事件
 
   /**
    * 创建播放器实例。
@@ -60,6 +63,9 @@ public:
    */
   bool play(const std::filesystem::path &path);
 
+  /** 通知播放器即将加载尚未解析完成的播放源。 */
+  void beginLoading();
+
   /**
    * 停止当前播放并释放当前流。
    */
@@ -69,19 +75,19 @@ public:
    * 暂停当前播放流。
    * @return 当前存在播放流且暂停成功时返回 true，否则返回 false
    */
-  bool pause() const;
+  bool pause();
 
   /**
    * 恢复当前播放流。
    * @return 当前存在播放流且恢复成功时返回 true，否则返回 false
    */
-  bool resume() const;
+  bool resume();
 
   /**
    * 在暂停和播放状态之间切换。
    * @return 当前存在播放流且状态切换成功时返回 true，否则返回 false
    */
-  bool togglePause() const;
+  bool togglePause();
 
   /**
    * 跳转到指定播放时间。
@@ -98,22 +104,10 @@ public:
   bool seekRatio(double ratio) const;
 
   /**
-   * 查询当前是否正在播放。
-   * @return 当前存在播放流且 BASS 状态为播放中时返回 true，否则返回 false
+   * 获取当前播放位置。
+   * @return 当前播放位置（秒），没有播放流或查询失败时返回 0
    */
-  [[nodiscard]] bool playing() const;
-
-  /**
-   * 查询当前是否存在播放流。
-   * @return 当前已有播放流句柄时返回 true，否则返回 false
-   */
-  [[nodiscard]] bool hasStream() const;
-
-  /**
-   * 获取当前播放状态快照。
-   * @return 当前播放流、播放位置、总时长和音量状态
-   */
-  [[nodiscard]] PlaybackState state() const;
+  [[nodiscard]] double positionSeconds() const;
 
   /**
    * 设置播放器音量。
@@ -141,10 +135,10 @@ private:
   bool loadFlacPlugin();
 
   /**
-   * 为当前播放流注册自然播放完成同步事件。
-   * @return 注册成功时返回 true，否则返回 false
+   * 为当前播放流注册播放完成和缓冲状态同步事件。
+   * @return 全部注册成功时返回 true，否则返回 false
    */
-  bool installEndSync();
+  bool installPlaybackSyncs();
 
   /**
    * 接收 BASS 播放完成同步事件。
@@ -156,6 +150,21 @@ private:
   static void CALLBACK onPlaybackEnded(HSYNC handle, DWORD channel, DWORD data, void *user);
 
   /**
+   * 接收 BASS 播放流缓冲状态同步事件。
+   * @param handle BASS 同步事件句柄
+   * @param channel 状态变化的播放流句柄
+   * @param data 0 表示进入缓冲，非 0 表示恢复播放
+   * @param user 播放器实例指针
+   */
+  static void CALLBACK onPlaybackStalled(HSYNC handle, DWORD channel, DWORD data, void *user);
+
+  /**
+   * 更新并发送播放状态。
+   * @param state 新的播放状态
+   */
+  void setPlaybackState(PlaybackState state);
+
+  /**
    * 从当前播放流刷新总时长缓存。
    */
   void updateDurationSeconds();
@@ -165,13 +174,15 @@ private:
    */
   void releaseStream();
 
-  mutable std::mutex mutex_{};          // 保护 BASS 句柄和播放器状态
-  HSTREAM stream_{};                    // 当前播放流句柄，0 表示未打开
-  HSYNC end_sync{};                     // 当前播放完成同步事件句柄
-  HPLUGIN flac_plugin{};                // BASSFLAC 插件句柄
-  bool initialized_{ false };           // BASS 设备和插件是否已初始化
-  float volume_{ 1.0f };                // 当前音量，范围 0..1
-  double duration_seconds{ 0.0 };       // 当前流总时长，未知时为 0
+  mutable std::mutex mutex_{}; // 保护 BASS 句柄和播放器状态
+  HSTREAM stream_{};           // 当前播放流句柄，0 表示未打开
+  HSYNC end_sync{};            // 当前播放完成同步事件句柄
+  HSYNC stall_sync{};          // 当前播放缓冲状态同步事件句柄
+  HPLUGIN flac_plugin{};       // BASSFLAC 插件句柄
+  bool initialized_{ false };  // BASS 设备和插件是否已初始化
+  std::atomic<PlaybackState> playback_state{ PlaybackState::stopped }; // 当前播放状态
+  float volume_{ 1.0f };                                               // 当前音量，范围 0..1
+  double duration_seconds{ 0.0 };                                      // 当前流总时长，未知时为 0
   std::filesystem::path current_path{}; // 当前本地播放文件，网络流时为空
 };
 
@@ -180,14 +191,17 @@ BassPlayer::~BassPlayer() {
 }
 
 bool BassPlayer::playUrl(const std::string_view url) {
-  std::lock_guard lock(mutex_);
-
   if (url.empty()) {
     yuri::error("音乐流 URL 为空");
     return false;
   }
 
+  setPlaybackState(PlaybackState::loading);
+  durationChanged.emit(0.0);
+
+  std::lock_guard lock(mutex_);
   if (!ensureInitialized()) {
+    setPlaybackState(PlaybackState::stopped);
     return false;
   }
 
@@ -199,36 +213,44 @@ bool BassPlayer::playUrl(const std::string_view url) {
   );
   if (stream_ == 0) {
     yuri::error("BASS 创建网络播放流失败: error={}", BASS_ErrorGetCode());
+    setPlaybackState(PlaybackState::stopped);
     return false;
   }
 
   BASS_ChannelSetAttribute(stream_, BASS_ATTRIB_VOL, volume_);
   updateDurationSeconds();
-  if (!installEndSync()) {
+  if (!installPlaybackSyncs()) {
     releaseStream();
+    setPlaybackState(PlaybackState::stopped);
     return false;
   }
 
   if (!BASS_ChannelPlay(stream_, TRUE)) {
     yuri::error("BASS 网络流播放失败: error={}", BASS_ErrorGetCode());
     releaseStream();
+    setPlaybackState(PlaybackState::stopped);
     return false;
   }
 
   current_path.clear();
+  durationChanged.emit(duration_seconds);
+  setPlaybackState(PlaybackState::playing);
   yuri::info("开始流式播放");
   return true;
 }
 
 bool BassPlayer::play(const std::filesystem::path &path) {
-  std::lock_guard lock(mutex_);
-
   if (!std::filesystem::exists(path)) {
     yuri::error("音乐文件不存在: {}", path.string());
     return false;
   }
 
+  setPlaybackState(PlaybackState::loading);
+  durationChanged.emit(0.0);
+
+  std::lock_guard lock(mutex_);
   if (!ensureInitialized()) {
+    setPlaybackState(PlaybackState::stopped);
     return false;
   }
 
@@ -243,50 +265,70 @@ bool BassPlayer::play(const std::filesystem::path &path) {
 #endif
   if (stream_ == 0) {
     yuri::error("BASS 创建播放流失败: {}, error={}", path.string(), BASS_ErrorGetCode());
+    setPlaybackState(PlaybackState::stopped);
     return false;
   }
 
   BASS_ChannelSetAttribute(stream_, BASS_ATTRIB_VOL, volume_);
   updateDurationSeconds();
-  if (!installEndSync()) {
+  if (!installPlaybackSyncs()) {
     releaseStream();
+    setPlaybackState(PlaybackState::stopped);
     return false;
   }
 
   if (!BASS_ChannelPlay(stream_, TRUE)) {
     yuri::error("BASS 播放失败: {}, error={}", path.string(), BASS_ErrorGetCode());
     releaseStream();
+    setPlaybackState(PlaybackState::stopped);
     return false;
   }
 
   current_path = path;
+  durationChanged.emit(duration_seconds);
+  setPlaybackState(PlaybackState::playing);
   yuri::info("开始播放: {}", path.string());
   return true;
+}
+
+void BassPlayer::beginLoading() {
+  durationChanged.emit(0.0);
+  setPlaybackState(PlaybackState::loading);
 }
 
 void BassPlayer::stop() {
   std::lock_guard lock(mutex_);
   releaseStream();
   current_path.clear();
+  durationChanged.emit(0.0);
+  setPlaybackState(PlaybackState::stopped);
 }
 
-bool BassPlayer::pause() const {
+bool BassPlayer::pause() {
   std::lock_guard lock(mutex_);
   if (stream_ == 0) {
     return false;
   }
-  return BASS_ChannelPause(stream_) != FALSE;
+  if (!BASS_ChannelPause(stream_)) {
+    return false;
+  }
+  setPlaybackState(PlaybackState::paused);
+  return true;
 }
 
-bool BassPlayer::resume() const {
+bool BassPlayer::resume() {
   std::lock_guard lock(mutex_);
   if (stream_ == 0) {
     return false;
   }
-  return BASS_ChannelPlay(stream_, FALSE) != FALSE;
+  if (!BASS_ChannelPlay(stream_, FALSE)) {
+    return false;
+  }
+  setPlaybackState(PlaybackState::playing);
+  return true;
 }
 
-bool BassPlayer::togglePause() const {
+bool BassPlayer::togglePause() {
   std::lock_guard lock(mutex_);
   if (stream_ == 0) {
     return false;
@@ -294,9 +336,17 @@ bool BassPlayer::togglePause() const {
 
   const auto active_state = BASS_ChannelIsActive(stream_);
   if (active_state == BASS_ACTIVE_PLAYING || active_state == BASS_ACTIVE_STALLED) {
-    return BASS_ChannelPause(stream_) != FALSE;
+    if (!BASS_ChannelPause(stream_)) {
+      return false;
+    }
+    setPlaybackState(PlaybackState::paused);
+    return true;
   }
-  return BASS_ChannelPlay(stream_, FALSE) != FALSE;
+  if (!BASS_ChannelPlay(stream_, FALSE)) {
+    return false;
+  }
+  setPlaybackState(PlaybackState::playing);
+  return true;
 }
 
 bool BassPlayer::seekSeconds(const double seconds) const {
@@ -328,45 +378,29 @@ bool BassPlayer::seekRatio(const double ratio) const {
   return BASS_ChannelSetPosition(stream_, target, BASS_POS_BYTE) != FALSE;
 }
 
-bool BassPlayer::playing() const {
+double BassPlayer::positionSeconds() const {
   std::lock_guard lock(mutex_);
-  return stream_ != 0 && BASS_ChannelIsActive(stream_) == BASS_ACTIVE_PLAYING;
-}
-
-bool BassPlayer::hasStream() const {
-  std::lock_guard lock(mutex_);
-  return stream_ != 0;
-}
-
-PlaybackState BassPlayer::state() const {
-  std::lock_guard lock(mutex_);
-
-  PlaybackState result{};
-  result.has_stream = stream_ != 0;
-  result.volume = volume_;
   if (stream_ == 0) {
-    return result;
+    return 0.0;
   }
-
-  result.playing = BASS_ChannelIsActive(stream_) == BASS_ACTIVE_PLAYING;
 
   const auto pos = BASS_ChannelGetPosition(stream_, BASS_POS_BYTE);
-  if (pos != static_cast<QWORD>(-1)) {
-    result.position_seconds = BASS_ChannelBytes2Seconds(stream_, pos);
+  if (pos == static_cast<QWORD>(-1)) {
+    return 0.0;
   }
-
-  result.duration_seconds = duration_seconds;
-
-  return result;
+  return BASS_ChannelBytes2Seconds(stream_, pos);
 }
 
 bool BassPlayer::setVolume(const float value) {
   std::lock_guard lock(mutex_);
-  volume_ = std::clamp(value, 0.0f, 1.0f);
-  if (stream_ == 0) {
+  const float next_volume = std::clamp(value, 0.0f, 1.0f);
+  if (std::abs(volume_ - next_volume) <= 0.001f) {
     return true;
   }
-  return BASS_ChannelSetAttribute(stream_, BASS_ATTRIB_VOL, volume_) != FALSE;
+  volume_ = next_volume;
+  const bool applied = stream_ == 0 || BASS_ChannelSetAttribute(stream_, BASS_ATTRIB_VOL, volume_);
+  volumeChanged.emit(volume_);
+  return applied;
 }
 
 void BassPlayer::shutdown() {
@@ -422,24 +456,54 @@ bool BassPlayer::loadFlacPlugin() {
   return true;
 }
 
-bool BassPlayer::installEndSync() {
+bool BassPlayer::installPlaybackSyncs() {
   constexpr DWORD kEndSyncType = BASS_SYNC_END | BASS_SYNC_ONETIME; // 单次播放完成事件
   end_sync = BASS_ChannelSetSync(stream_, kEndSyncType, 0, &BassPlayer::onPlaybackEnded, this);
   if (end_sync == 0) {
     yuri::error("BASS 注册播放完成事件失败: error={}", BASS_ErrorGetCode());
     return false;
   }
+
+  stall_sync =
+    BASS_ChannelSetSync(stream_, BASS_SYNC_STALL, 0, &BassPlayer::onPlaybackStalled, this);
+  if (stall_sync == 0) {
+    yuri::error("BASS 注册播放缓冲事件失败: error={}", BASS_ErrorGetCode());
+    BASS_ChannelRemoveSync(stream_, end_sync);
+    end_sync = 0;
+    return false;
+  }
   return true;
 }
 
-void CALLBACK
-BassPlayer::onPlaybackEnded(const HSYNC, const DWORD channel, const DWORD, void *const user) {
+void CALLBACK BassPlayer::onPlaybackEnded(const HSYNC, const DWORD, const DWORD, void *const user) {
   if (user == nullptr) {
     return;
   }
 
   auto *const player = static_cast<BassPlayer *>(user);
+  player->setPlaybackState(PlaybackState::stopped);
   player->finished.emit();
+}
+
+void CALLBACK
+BassPlayer::onPlaybackStalled(const HSYNC, const DWORD, const DWORD data, void *const user) {
+  if (user == nullptr) {
+    return;
+  }
+
+  auto *const player = static_cast<BassPlayer *>(user);
+  const auto current_state = player->playback_state.load();
+  if (current_state == PlaybackState::paused || current_state == PlaybackState::stopped) {
+    return;
+  }
+  player->setPlaybackState(data == 0 ? PlaybackState::buffering : PlaybackState::playing);
+}
+
+void BassPlayer::setPlaybackState(const PlaybackState state) {
+  if (playback_state.exchange(state) == state) {
+    return;
+  }
+  stateChanged.emit(state);
 }
 
 void BassPlayer::updateDurationSeconds() {
@@ -455,6 +519,10 @@ void BassPlayer::releaseStream() {
     if (end_sync != 0) {
       BASS_ChannelRemoveSync(stream_, end_sync);
       end_sync = 0;
+    }
+    if (stall_sync != 0) {
+      BASS_ChannelRemoveSync(stream_, stall_sync);
+      stall_sync = 0;
     }
     BASS_ChannelStop(stream_);
     BASS_StreamFree(stream_);
