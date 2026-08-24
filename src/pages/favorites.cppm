@@ -278,14 +278,13 @@ void FavoritesPage::playRandom() {
     return;
   }
 
-  const auto current = std::ranges::find(song_items, selected_item);
-  if (song_items.size() == 1 || current == song_items.end()) {
-    std::uniform_int_distribution<std::size_t> distribution(0, song_items.size() - 1);
-    onSongDoubleClicked(song_items[distribution(random_engine)]);
+  if (song_items.size() == 1) {
+    onSongDoubleClicked(selected_item);
     return;
   }
 
-  const auto current_index = static_cast<std::size_t>(std::distance(song_items.begin(), current));
+  const auto current = std::ranges::find(song_items, selected_item);
+  const auto current_index = static_cast<std::size_t>(current - song_items.begin());
   std::uniform_int_distribution<std::size_t> distribution(0, song_items.size() - 2);
   auto random_index = distribution(random_engine);
   if (random_index >= current_index) {
