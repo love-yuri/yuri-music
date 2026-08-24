@@ -566,6 +566,16 @@ void FavoritesPage::checkLoadMore(const float scrollOffset) {
 
 // 加载下一页歌曲
 void FavoritesPage::loadMore() {
+  using namespace qqmusic_api::playlist;
+  if (tid_ == 0) {
+    for (auto &value : get_user_playlists().data.disslist) {
+      if (value.diss_name == "我喜欢") {
+        tid_ = value.tid;
+        break;
+      }
+    }
+  }
+
   if (loading_ || !has_more || tid_ == 0) {
     return;
   }
@@ -573,8 +583,7 @@ void FavoritesPage::loadMore() {
   loading_ = true;
   const int current_offset = offset_;
   thread_manager->addTask([this, current_offset] {
-    const auto res =
-      qqmusic_api::playlist::get_user_playlists_detail(tid_, current_offset, 30).req_1.data;
+    const auto res = get_user_playlists_detail(tid_, current_offset, 30).req_1.data;
     if (res.songlist.empty()) {
       has_more = false;
       loading_ = false;
