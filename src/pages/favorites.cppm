@@ -13,6 +13,7 @@ import qq_music_api;
 import core;
 import bass24;
 import models;
+import store;
 
 using namespace ui::layout;
 using namespace ui::widgets;
@@ -202,24 +203,8 @@ FavoritesPage::FavoritesPage(Widget *parent) : Widget(parent) {
   // 滚动到底部附近时加载更多
   items_->scrollChanged.connect<&FavoritesPage::checkLoadMore>(this);
 
-  loading_ = true;
-  thread_manager->addTask([this] {
-    using namespace qqmusic_api::playlist;
-    for (auto &value : get_user_playlists().data.disslist) {
-      if (value.diss_name == "我喜欢") {
-        tid_ = value.tid;
-        loading_ = false;
-        loadMore();
-        break;
-      }
-    }
-
-    if (tid_ == 0) {
-      has_more = false;
-      loading_ = false;
-      yuri::warn("未找到“我喜欢”歌单");
-    }
-  });
+  // 状态更新时重新加载
+  store::user_profile_store.status_changed.connect<&FavoritesPage::loadMore>(this);
 }
 
 void FavoritesPage::paint(SkCanvas *canvas) {
@@ -251,7 +236,16 @@ void FavoritesPage::playPrevious() {
 }
 
 void FavoritesPage::playNext() {
-  if (song_items.empty()) return;
+  if (song_items.empty()) {
+    return;
+  }
+
+  // 处理下一首播放
+  if (play_next) {
+    onSongDoubleClicked(play_next);
+    play_next = nullptr;
+    return;
+  }
 
   if (random_playback) {
     playRandom();
