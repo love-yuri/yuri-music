@@ -14,6 +14,7 @@ file(GLOB CXX_MODULES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/*.cppm
     ${CMAKE_CURRENT_SOURCE_DIR}/src/models/*.cppm
     ${CMAKE_CURRENT_SOURCE_DIR}/src/store/*.cppm
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/playback/*.cppm
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/*.cppm
 )
 

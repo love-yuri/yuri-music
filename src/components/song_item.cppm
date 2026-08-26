@@ -77,12 +77,17 @@ public:
   void setSelected(bool value);
 
   /** 是否选中 */
-  [[nodiscard]] bool isSelected() const { return selected_; }
+  [[nodiscard]] bool isSelected() const {
+    return selected_;
+  }
 
   /** 获取歌曲信息 */
-  [[nodiscard]] const SongInfo &info() const { return info_; }
+  [[nodiscard]] const SongInfo &info() const {
+    return info_;
+  }
 
-  Signal<SongItem *> doubleClicked; // 双击信号
+  Signal<SongItem *> doubleClicked;        // 双击信号
+  Signal<SongItem *> contextMenuRequested; // 上下文菜单请求信号
 
 protected:
   /** 鼠标悬浮进入 */
@@ -114,7 +119,9 @@ private:
   [[nodiscard]] bool isOverMore(float x, float y) const;
 
   /** 设置喜欢按钮弹性动画进度 */
-  void setLikeT(const float t) noexcept { like_t = t; }
+  void setLikeT(const float t) noexcept {
+    like_t = t;
+  }
 
   /** 异步加载专辑封面 */
   void loadCoverImage();
@@ -140,11 +147,10 @@ private:
   // --- 交互状态 ---
   bool is_playing = false; // 是否播放中
 
-  bool is_hovering = false;            // 是否悬浮中
-  bool is_pressed = false;             // 是否正在被按下
-  bool selected_ = false;              // 是否被选中
-  std::uint64_t last_click_time = 0;   // 上次点击时间
-  ContextMenu *context_menu = nullptr; // 当前歌曲对应的右键菜单
+  bool is_hovering = false;          // 是否悬浮中
+  bool is_pressed = false;           // 是否正在被按下
+  bool selected_ = false;            // 是否被选中
+  std::uint64_t last_click_time = 0; // 上次点击时间
 
   // --- 动画进度（独立通道，互不干扰） ---
   float hover_t = 0.0f;  // 悬浮渐入 [0,1]
@@ -154,15 +160,15 @@ private:
   float like_t = 0.0f;   // 喜欢按钮弹性反馈
 };
 
-SongItem::SongItem(const int index, SongInfo info, const bool is_playing, Widget *parent)
-    : Widget(parent), index_text(std::to_string(index + 1)), cover_bg(),
-      cover_svg("resources/svg/play.svg"), title_text(info.title), artist_text(info.artist),
-      album_text(info.album_name), duration_text(info.duration), info_(std::move(info)),
-      is_playing(is_playing) {
+SongItem::SongItem(const int index, SongInfo info, const bool is_playing, Widget *parent) :
+  Widget(parent), index_text(std::to_string(index + 1)), cover_bg(),
+  cover_svg("resources/svg/play.svg"), title_text(info.title), artist_text(info.artist),
+  album_text(info.album_name), duration_text(info.duration), info_(std::move(info)),
+  is_playing(is_playing) {
   constexpr SkColor palette[] = {
-      ColorFromARGB(255, 255, 99, 132),  ColorFromARGB(255, 42, 140, 233),
-      ColorFromARGB(255, 16, 178, 180),  ColorFromARGB(255, 245, 155, 54),
-      ColorFromARGB(255, 128, 111, 232),
+    ColorFromARGB(255, 255, 99, 132),  ColorFromARGB(255, 42, 140, 233),
+    ColorFromARGB(255, 16, 178, 180),  ColorFromARGB(255, 245, 155, 54),
+    ColorFromARGB(255, 128, 111, 232),
   };
   cover_color = palette[static_cast<std::size_t>(index) % std::size(palette)];
 
@@ -234,8 +240,12 @@ bool SongItem::drawCoverImage(SkCanvas *canvas) const {
 
   canvas->save();
   canvas->clipRRect(SkRRect::MakeRectXY(cover_rect, radius, radius), true);
-  canvas->drawImageRect(cover_image, cover_rect,
-                        SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kLinear), nullptr);
+  canvas->drawImageRect(
+    cover_image,
+    cover_rect,
+    SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kLinear),
+    nullptr
+  );
   canvas->restore();
   return true;
 }
@@ -288,13 +298,7 @@ void SongItem::onMouseLeftPressed(float, float) {
 }
 
 void SongItem::onMouseRightPressed(float, float) {
-  if (context_menu == nullptr) {
-    context_menu = new ContextMenu({
-      ContextMenuItem("评论"),
-      ContextMenuItem("下一首播放")
-    }, this);
-  }
-  context_menu->popupAtCursor();
+  contextMenuRequested.emit(this);
 }
 
 void SongItem::onMouseLeftReleased(float x, float y) {
@@ -335,8 +339,7 @@ void SongItem::onMouseMove(float x, float y) {
 }
 
 void SongItem::setSelected(const bool value) {
-  if (selected_ == value)
-    return;
+  if (selected_ == value) return;
   selected_ = value;
   startAnimation(select_t, value ? 1.0f : 0.0f, 250.0f, &select_t, CubicBezier::EaseOut());
 }
@@ -362,7 +365,8 @@ void SongItem::layoutChildren() {
 
   // 行背景
   hover_bg.update(
-      SkRect::MakeXYWH(0.0f, 0.0f, std::max(0.0f, rect.width() - kHoverRightInset), rect.height()));
+    SkRect::MakeXYWH(0.0f, 0.0f, std::max(0.0f, rect.width() - kHoverRightInset), rect.height())
+  );
 
   // 序号区
   index_text.update(SkRect::MakeXYWH(kPadH, 0, kIndexWidth, rect.height()));
@@ -429,7 +433,8 @@ void SongItem::paint(SkCanvas *canvas) {
     SkPaint glow;
     glow.setAntiAlias(true);
     glow.setColor(
-        ColorFromARGB(static_cast<U8CPU>(10.0f * std::max(hover_t, select_t)), 18, 28, 44));
+      ColorFromARGB(static_cast<U8CPU>(10.0f * std::max(hover_t, select_t)), 18, 28, 44)
+    );
     canvas->saveLayer(&layer_bounds, &glow_layer);
     canvas->drawRoundRect(glow_rect, hover_radius, hover_radius, glow);
     canvas->restore();
@@ -444,8 +449,11 @@ void SongItem::paint(SkCanvas *canvas) {
     constexpr float cover_x = kPadH + kIndexWidth + kGap;
     constexpr float cover_y = (kRowHeight - kCoverSize) * 0.5f;
     canvas->drawRoundRect(
-        SkRect::MakeXYWH(cover_x + 2.0f, cover_y + 2.0f, kCoverSize - 4.0f, kCoverSize * 0.42f),
-        kCoverRadius - 2.0f, kCoverRadius - 2.0f, coverShine);
+      SkRect::MakeXYWH(cover_x + 2.0f, cover_y + 2.0f, kCoverSize - 4.0f, kCoverSize * 0.42f),
+      kCoverRadius - 2.0f,
+      kCoverRadius - 2.0f,
+      coverShine
+    );
     cover_svg.render(canvas);
   }
   canvas->restore();

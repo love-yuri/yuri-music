@@ -7,6 +7,7 @@ import std;
 import qq_music_api;
 import core;
 import yuri_log;
+import ui.runtime;
 
 std::string displayNameFrom(const qqmusic_api::user::UserInfoResult &user_info) {
   if (!user_info.data.creator.nick.empty()) {
@@ -83,7 +84,7 @@ void UserProfileStore::reload() noexcept {
       status_text = "登录状态验证失败，请稍后重试";
       yuri::warn("验证 QQ 音乐登录状态失败: {}", e.what());
     }
-    status_changed.emit();
+    ui::dispatcher.post([this] { status_changed.emit(); });
   });
 }
 

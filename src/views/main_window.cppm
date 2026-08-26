@@ -14,6 +14,7 @@ import std;
 import ui;
 import bass24;
 import models;
+import playback;
 
 using namespace skia;
 using namespace glfw;
@@ -145,7 +146,19 @@ private:
    *
    * @param info 选中的歌曲信息。
    */
-  void onSongSelected(const SongInfo &info) const;
+  void onCurrentSongChanged(const SongInfo &info) const;
+
+  /**
+   * 打开指定歌曲的上下文菜单。
+   * @param info 请求菜单的歌曲信息
+ */
+  void onSongContextMenuRequested(const SongInfo &info);
+
+  /**
+   * 处理歌曲上下文菜单操作。
+   * @param index 被点击的菜单项索引
+   */
+  void onSongContextMenuItemClicked(std::size_t index);
 
   /**
    * 同步 Bass 播放状态到播放栏。
@@ -198,9 +211,6 @@ private:
   /** 播放下一首歌曲。 */
   void onNextClicked() const;
 
-  /** 处理播放完成事件并切换到下一首。 */
-  void onPlaybackFinished() const;
-
   /** 定期同步底层播放器位置。 */
   void syncPlaybackPosition();
 
@@ -210,7 +220,8 @@ private:
   PageView *page_view = nullptr;                                         // 页面容器
   components::PlayerBar *player_bar = nullptr;                           // 底部播放栏
   components::VolumeSliderPopup *volume_popup = nullptr;                 // 竖向音量浮层
-  pages::FavoritesPage *favorites_page = nullptr;                        // 我喜欢页面
+  ContextMenu *song_context_menu = nullptr;                              // 歌曲上下文菜单
+  std::optional<SongInfo> context_menu_song{};                           // 菜单对应歌曲
   std::uint64_t last_position_sync_us = 0;                               // 上次播放位置采样时间
   double playback_duration_seconds = 0.0;                                // 当前歌曲总时长
   bass24::PlaybackState playback_state = bass24::PlaybackState::stopped; // 当前播放状态
@@ -252,13 +263,16 @@ MainWindow::MainWindow() : Window(1024, 700) {
   volume_popup = new components::VolumeSliderPopup(this);
   volume_popup->setVisible(false);
   volume_popup->volume_changed.connect<&MainWindow::onVolumeChanged>(this);
-  bass24::bass24_player.stateChanged.connect<&MainWindow::onPlaybackStateChanged>(this);
-  bass24::bass24_player.durationChanged.connect<&MainWindow::onPlaybackDurationChanged>(this);
-  bass24::bass24_player.volumeChanged.connect<&MainWindow::onPlayerVolumeChanged>(this);
-  bass24::bass24_player.finished.connect<&MainWindow::onPlaybackFinished>(this);
+  playback::controller.currentSongChanged.connect<&MainWindow::onCurrentSongChanged>(this);
+  playback::controller.playbackStateChanged.connect<&MainWindow::onPlaybackStateChanged>(this);
+  playback::controller.playbackDurationChanged.connect<&MainWindow::onPlaybackDurationChanged>(this);
+  playback::controller.volumeChanged.connect<&MainWindow::onPlayerVolumeChanged>(this);
 
   setupSidebar();
   setupPages();
+  song_context_menu =
+    new ContextMenu({ ContextMenuItem("下一首播放"), ContextMenuItem("评论") }, this);
+  song_context_menu->itemClicked.connect<&MainWindow::onSongContextMenuItemClicked>(this);
   page_view->showPage("home");
   menu_buttons["home"]->setActive(true);
   markLayoutDirty();
@@ -344,18 +358,41 @@ void MainWindow::setupPages() {
 
   page_view->addPage("library", new pages::LibraryPage(page_view));
 
-  favorites_page = new pages::FavoritesPage(page_view);
-  favorites_page->songSelected.connect<&MainWindow::onSongSelected>(this);
+  auto *const favorites_page = new pages::FavoritesPage(page_view);
+  favorites_page->songContextMenuRequested.connect<&MainWindow::onSongContextMenuRequested>(this);
   page_view->addPage("favorites", favorites_page);
   page_view->addPage("recent", new pages::RecentPage(page_view));
   page_view->addPage("settings", new pages::SettingsPage(page_view));
 }
 
-void MainWindow::onSongSelected(const SongInfo &info) const {
+void MainWindow::onCurrentSongChanged(const SongInfo &info) const {
   player_bar->updateSong(info);
   player_bar->setPlaybackDuration(0.0);
   player_bar->setPlaybackPosition(0.0);
   player_bar->show();
+}
+
+void MainWindow::onSongContextMenuRequested(const SongInfo &info) {
+  context_menu_song = info;
+  song_context_menu->popupAtCursor();
+}
+
+void MainWindow::onSongContextMenuItemClicked(const std::size_t index) {
+  if (!context_menu_song) {
+    return;
+  }
+
+  switch (index) {
+    case 0: {
+      playback::controller.enqueueNext(*context_menu_song);
+      break;
+    }
+    case 1: {
+      break;
+    }
+    default: break;
+  }
+  context_menu_song.reset();
 }
 
 void MainWindow::onPlaybackStateChanged(const bass24::PlaybackState state) {
@@ -390,14 +427,14 @@ void MainWindow::onPlaybackDurationChanged(const double duration_seconds) {
 // ReSharper disable once CppMemberFunctionMayBeStatic
 void MainWindow::onSeekRequested(const double ratio) const {
   const double safe_ratio = std::clamp(ratio, 0.0, 1.0);
-  if (bass24::bass24_player.seekRatio(safe_ratio)) {
+  if (playback::controller.seekRatio(safe_ratio)) {
     player_bar->setPlaybackPosition(playback_duration_seconds * safe_ratio);
   }
 }
 
 // ReSharper disable once CppMemberFunctionMayBeStatic
 void MainWindow::onVolumeChanged(const float volume) const {
-  void(bass24::bass24_player.setVolume(volume));
+  void(playback::controller.setVolume(volume));
 }
 
 void MainWindow::onPlayerVolumeChanged(const float volume) const {
@@ -406,9 +443,7 @@ void MainWindow::onPlayerVolumeChanged(const float volume) const {
 }
 
 void MainWindow::onPlaybackModeChanged(const bool random) const {
-  if (favorites_page != nullptr) {
-    favorites_page->setRandomPlayback(random);
-  }
+  playback::controller.setRandomPlayback(random);
 }
 
 void MainWindow::onVolumeButtonClicked() {
@@ -419,25 +454,16 @@ void MainWindow::onVolumeButtonClicked() {
 }
 
 void MainWindow::onPreviousClicked() const {
-  if (favorites_page != nullptr) {
-    favorites_page->playPrevious();
-  }
+  playback::controller.previous();
 }
 
 // ReSharper disable once CppMemberFunctionMayBeStatic
 void MainWindow::onPlayPauseClicked() {
-  void(bass24::bass24_player.togglePause());
+  playback::controller.togglePause();
 }
 
 void MainWindow::onNextClicked() const {
-  if (favorites_page != nullptr) {
-    favorites_page->playNext();
-  }
-}
-
-void MainWindow::onPlaybackFinished() const {
-  player_bar->setPlaybackPosition(playback_duration_seconds);
-  onNextClicked();
+  playback::controller.next();
 }
 
 void MainWindow::syncPlaybackPosition() {
@@ -454,7 +480,7 @@ void MainWindow::syncPlaybackPosition() {
     return;
   }
   last_position_sync_us = now;
-  player_bar->setPlaybackPosition(bass24::bass24_player.positionSeconds());
+  player_bar->setPlaybackPosition(playback::controller.positionSeconds());
 }
 
 void MainWindow::onMenuClicked(const std::string &id) {
