@@ -524,15 +524,21 @@ void PlaybackController::beginPlayback(const SongInfo &song) {
 }
 
 void PlaybackController::onBassStateChanged(const bass24::PlaybackState state) {
-  ui::dispatcher.post([this, state] { playbackStateChanged.emit(state); });
+  ui::dispatcher.post([this, state] {
+    playbackStateChanged.emit(state);
+  });
 }
 
 void PlaybackController::onBassDurationChanged(const double duration_seconds) {
-  ui::dispatcher.post([this, duration_seconds] { playbackDurationChanged.emit(duration_seconds); });
+  ui::dispatcher.post([this, duration_seconds] {
+    playbackDurationChanged.emit(duration_seconds);
+  });
 }
 
 void PlaybackController::onBassVolumeChanged(const float volume) {
-  ui::dispatcher.post([this, volume] { volumeChanged.emit(volume); });
+  ui::dispatcher.post([this, volume] {
+    volumeChanged.emit(volume);
+  });
 }
 
 void PlaybackController::onBassFinished() {
