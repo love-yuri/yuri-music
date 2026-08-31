@@ -9,10 +9,10 @@ export module playback;
 
 import std;
 import bass24;
-import core;
+import yuri.core;
 import models;
 import qq_music_api;
-import ui.runtime;
+import yuri.ui.runtime;
 
 namespace {
 

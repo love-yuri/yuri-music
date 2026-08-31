@@ -8,10 +8,10 @@ module;
 export module components:user_profile_card;
 
 import std;
-import ui;
-import skia;
+import yuri.ui;
+import yuri.skia;
 import models;
-import core;
+import yuri.core;
 import qq_music_api;
 import store;
 

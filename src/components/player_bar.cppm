@@ -4,9 +4,9 @@
 export module components:player_bar;
 
 import std;
-import ui;
-import skia;
-import core;
+import yuri.ui;
+import yuri.skia;
+import yuri.core;
 import qq_music_api;
 import models;
 

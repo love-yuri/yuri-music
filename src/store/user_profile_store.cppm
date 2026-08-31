@@ -5,9 +5,9 @@ export module store:user_profile_store;
 
 import std;
 import qq_music_api;
-import core;
-import yuri_log;
-import ui.runtime;
+import yuri.core;
+import yuri.log;
+import yuri.ui.runtime;
 
 std::string displayNameFrom(const qqmusic_api::user::UserInfoResult &user_info) {
   if (!user_info.data.creator.nick.empty()) {

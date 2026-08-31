@@ -4,11 +4,11 @@
 export module components:menu_button;
 
 import std;
-import ui;
-import skia;
-import core;
-import yuri_log;
-import glfw.api;
+import yuri.ui;
+import yuri.skia;
+import yuri.core;
+import yuri.log;
+import yuri.glfw.api;
 
 using namespace ui::render;
 using namespace ui::layout;

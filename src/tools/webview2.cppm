@@ -11,7 +11,7 @@ module;
 export module webview2;
 
 import std;
-import core;
+import yuri.core;
 import qq_music_api;
 
 namespace {

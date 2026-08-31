@@ -4,9 +4,9 @@
 export module pages:home;
 
 import std;
-import ui;
-import core;
-import skia;
+import yuri.ui;
+import yuri.core;
+import yuri.skia;
 import components;
 
 using namespace ui::layout;

@@ -4,13 +4,13 @@
 export module pages:library;
 
 import std;
-import ui;
-import skia;
+import yuri.ui;
+import yuri.skia;
 import webview2;
 import components;
 import models;
 import store;
-import core;
+import yuri.core;
 import qq_music_api;
 
 using namespace ui::layout;

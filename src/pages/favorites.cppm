@@ -6,13 +6,13 @@ export module pages:favorites;
 
 import std;
 import components;
-import core;
+import yuri.core;
 import models;
 import playback;
 import qq_music_api;
-import skia;
+import yuri.skia;
 import store;
-import ui;
+import yuri.ui;
 
 using namespace components;
 using namespace skia;

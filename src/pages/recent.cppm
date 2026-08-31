@@ -4,8 +4,8 @@
 export module pages:recent;
 
 import std;
-import ui;
-import skia;
+import yuri.ui;
+import yuri.skia;
 
 using namespace ui::layout;
 using namespace ui::widgets;

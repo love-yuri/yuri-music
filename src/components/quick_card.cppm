@@ -4,10 +4,10 @@
 export module components:quick_card;
 
 import std;
-import ui;
-import core;
-import skia;
-import glfw.api;
+import yuri.ui;
+import yuri.core;
+import yuri.skia;
+import yuri.glfw.api;
 
 using namespace ui::render;
 using namespace ui::layout;

@@ -4,12 +4,12 @@
 export module components:song_item;
 
 import std;
-import ui;
-import core;
-import skia;
-import glfw.api;
+import yuri.ui;
+import yuri.core;
+import yuri.skia;
+import yuri.glfw.api;
 import qq_music_api;
-import vulkan.context;
+import yuri.vulkan.context;
 import models;
 
 using namespace ui::render;

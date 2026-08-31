@@ -3,10 +3,10 @@
 //
 export module page_view;
 
-import skia;
+import yuri.skia;
 import std;
-import core;
-import ui;
+import yuri.core;
+import yuri.ui;
 
 using namespace skia;
 using namespace ui::widgets;

@@ -7,7 +7,7 @@ module;
 export module bass24;
 
 import std;
-import core;
+import yuri.core;
 
 namespace bass24 {
 
