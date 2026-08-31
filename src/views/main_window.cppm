@@ -226,7 +226,7 @@ private:
   double playback_duration_seconds = 0.0;                                // 当前歌曲总时长
   bass24::PlaybackState playback_state = bass24::PlaybackState::stopped; // 当前播放状态
 
-  std::unordered_map<std::string, MenuButton *> menu_buttons; // 菜单按钮集合
+  std::unordered_map<std::string, MenuButton *> menu_buttons{}; // 菜单按钮集合
 
   static constexpr float kPlayerBarHeight = 86.0f;                     // 播放器底栏高度
   static constexpr float kVolumePopupOverlap = 14.0f;                  // 音量浮层重叠距离
@@ -270,12 +270,19 @@ MainWindow::MainWindow() : Window(1024, 700) {
 
   setupSidebar();
   setupPages();
-  song_context_menu =
-    new ContextMenu({ ContextMenuItem("下一首播放"), ContextMenuItem("评论") }, this);
+  song_context_menu = new ContextMenu({
+    ContextMenuItem("下一首播放"),
+    ContextMenuItem("评论") },
+    this
+  );
+
   song_context_menu->itemClicked.connect<&MainWindow::onSongContextMenuItemClicked>(this);
   page_view->showPage("home");
   menu_buttons["home"]->setActive(true);
   markLayoutDirty();
+
+  // 注入组件
+  injector.addSingleton(player_bar);
 }
 
 void MainWindow::layoutChildren() {
@@ -442,6 +449,7 @@ void MainWindow::onPlayerVolumeChanged(const float volume) const {
   volume_popup->setVolume(volume);
 }
 
+// ReSharper disable once CppMemberFunctionMayBeStatic
 void MainWindow::onPlaybackModeChanged(const bool random) const {
   playback::controller.setRandomPlayback(random);
 }
@@ -453,6 +461,7 @@ void MainWindow::onVolumeButtonClicked() {
   markLayoutDirty();
 }
 
+// ReSharper disable once CppMemberFunctionMayBeStatic
 void MainWindow::onPreviousClicked() const {
   playback::controller.previous();
 }
@@ -462,6 +471,7 @@ void MainWindow::onPlayPauseClicked() {
   playback::controller.togglePause();
 }
 
+// ReSharper disable once CppMemberFunctionMayBeStatic
 void MainWindow::onNextClicked() const {
   playback::controller.next();
 }
