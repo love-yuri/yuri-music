@@ -61,7 +61,7 @@ export namespace components {
 class SongItem : public Widget {
 public:
   /** 创建歌曲行组件 */
-  SongItem(int index, SongInfo info, bool is_playing = false, Widget *parent = nullptr);
+  SongItem(int index, const SongInfo& info, bool is_playing = false, Widget *parent = nullptr);
 
   /**
    * 布局child
@@ -130,19 +130,19 @@ private:
   bool drawCoverImage(SkCanvas *canvas) const;
 
   // --- 渲染节点 ---
-  RenderText index_text;             // 序号
-  RenderBackground cover_bg;         // 封面背景
-  RenderSvg cover_svg;               // 封面 SVG
-  float cover_radius = kCoverRadius; // 封面圆角
-  RenderText title_text;             // 标题
-  RenderText artist_text;            // 歌手
-  RenderText album_text;             // 专辑名
-  RenderText duration_text;          // 时长
-  RenderBackground hover_bg;         // 行背景（覆盖整行）
-  float hover_radius = 12.0f;        // 行背景圆角
-  SongInfo info_;                    // 歌曲信息
-  SkColor cover_color = kCoverColor; // 封面主色
-  sk_sp<SkImage> cover_image{};      // 专辑封面图片
+  RenderText index_text{};                         // 序号
+  RenderBackground cover_bg{};                     // 封面背景
+  RenderSvg cover_svg{ "resources/svg/play.svg" }; // 封面 SVG
+  float cover_radius = kCoverRadius;               // 封面圆角
+  RenderText title_text{};                         // 标题
+  RenderText artist_text{};                        // 歌手
+  RenderText album_text{};                         // 专辑名
+  RenderText duration_text{};                      // 时长
+  RenderBackground hover_bg{};                     // 行背景（覆盖整行）
+  float hover_radius = 12.0f;                      // 行背景圆角
+  SongInfo info_;                                  // 歌曲信息
+  SkColor cover_color = kCoverColor;               // 封面主色
+  sk_sp<SkImage> cover_image{};                    // 专辑封面图片
 
   // --- 交互状态 ---
   bool is_playing = false; // 是否播放中
@@ -160,9 +160,8 @@ private:
   float like_t = 0.0f;   // 喜欢按钮弹性反馈
 };
 
-SongItem::SongItem(const int index, SongInfo info, const bool is_playing, Widget *parent) :
-  Widget(parent), index_text(std::to_string(index + 1)), cover_bg(),
-  cover_svg("resources/svg/play.svg"), title_text(info.title), artist_text(info.artist),
+SongItem::SongItem(const int index, const SongInfo &info, const bool is_playing, Widget *parent) :
+  Widget(parent), index_text(std::to_string(index + 1)), title_text(info.title), artist_text(info.artist),
   album_text(info.album_name), duration_text(info.duration), info_(std::move(info)),
   is_playing(is_playing) {
   constexpr SkColor palette[] = {

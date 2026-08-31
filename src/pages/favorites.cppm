@@ -212,11 +212,11 @@ void FavoritesPage::loadMore() {
       std::vector<SongInfo> songs;
       songs.reserve(result.songlist.size());
       for (const auto &music : result.songlist) {
-        songs.push_back(makeSongInfo(music));
+        songs.emplace_back(makeSongInfo(music));
       }
 
       ui::dispatcher.post([this, resolved_tid, current_offset, songs = std::move(songs)]() mutable {
-        applyLoadedSongs(resolved_tid, current_offset, std::move(songs), true);
+        applyLoadedSongs(resolved_tid, current_offset, songs, true);
       });
     } catch (const std::exception &e) {
       const std::string message = e.what();
@@ -256,7 +256,7 @@ void FavoritesPage::applyLoadedSongs(
   const auto loaded_count = static_cast<int>(songs.size());
   int index = current_offset;
   for (auto &song : songs) {
-    auto *const item = new SongItem(index++, std::move(song), false, items_);
+    auto *const item = new SongItem(index++, song, false, items_);
     item->doubleClicked.connect<&FavoritesPage::onSongDoubleClicked>(this);
     item->contextMenuRequested.connect<&FavoritesPage::onSongContextMenuRequested>(this);
     song_items.push_back(item);
@@ -343,7 +343,7 @@ std::string FavoritesPage::formatSingers(const std::vector<SingerType> &singers)
 }
 
 SongInfo FavoritesPage::makeSongInfo(const SonglistType &music) {
-  return SongInfo{
+  return SongInfo {
     .title = std::string(music.title),
     .artist = formatSingers(music.singer),
     .album_name = std::string(music.album.name),
