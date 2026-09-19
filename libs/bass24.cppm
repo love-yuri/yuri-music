@@ -235,7 +235,6 @@ bool BassPlayer::playUrl(const std::string_view url) {
   current_path.clear();
   durationChanged.emit(duration_seconds);
   setPlaybackState(PlaybackState::playing);
-  yuri::info("开始流式播放");
   return true;
 }
 
