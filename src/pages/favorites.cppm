@@ -50,9 +50,6 @@ private:
   /** 加载下一页歌曲。 */
   void loadMore();
 
-  /** 处理用户资料状态变化并尝试加载歌单。 */
-  void onUserProfileChanged();
-
   /**
    * 将后台加载结果应用到页面。
    * @param tid 我喜欢歌单 ID
@@ -146,7 +143,7 @@ FavoritesPage::FavoritesPage(Widget *parent) : Widget(parent) {
 
   items_ = new ScrollArea(this);
   items_->scrollChanged.connect<&FavoritesPage::checkLoadMore>(this);
-  store::user_profile_store.status_changed.connect<&FavoritesPage::onUserProfileChanged>(this);
+  store::user_profile_store.status_changed.connect<&FavoritesPage::loadMore>(this);
   playback::controller.currentSongChanged.connect<&FavoritesPage::onCurrentSongChanged>(this);
 }
 
@@ -227,13 +224,6 @@ void FavoritesPage::loadMore() {
   });
 }
 
-void FavoritesPage::onUserProfileChanged() {
-  if (tid_ == 0 && song_items.empty()) {
-    has_more = true;
-  }
-  loadMore();
-}
-
 void FavoritesPage::applyLoadedSongs(
   const std::uint64_t tid,
   const int current_offset,
@@ -242,7 +232,6 @@ void FavoritesPage::applyLoadedSongs(
 ) {
   loading_ = false;
   if (!playlist_found) {
-    has_more = false;
     yuri::warn("未找到“我喜欢”歌单");
     return;
   }
