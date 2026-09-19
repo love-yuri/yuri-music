@@ -6,6 +6,9 @@ module;
 #include <Windows.h>
 #include <WebView2.h>
 #include <wrl.h>
+#elif defined(__linux__)
+#include <gtk/gtk.h>
+#include <webkit2/webkit2.h>
 #endif
 
 export module webview2;
@@ -16,29 +19,7 @@ import qq_music_api;
 
 namespace {
 
-#ifdef _WIN32
-
-using Microsoft::WRL::Callback;
-using Microsoft::WRL::ComPtr;
-
-constexpr wchar_t kWebViewWindowClass[] = L"YuriMusicQqLoginWebView";         // WebView2 窗口类名
-constexpr wchar_t kQqMusicLoginUrl[] = L"https://y.qq.com/n/ryqq_v2/profile"; // QQ 音乐登录入口
-constexpr UINT_PTR kCookieCaptureTimerId = 1;   // cookie 捕获定时器 ID
-constexpr UINT kCookieCaptureIntervalMs = 2000; // cookie 捕获间隔
-
 std::atomic_bool login_window_open = false; // 登录窗口是否已打开
-
-struct WebViewWindowState {
-  ComPtr<ICoreWebView2Controller> controller; // WebView2 控制器
-  ComPtr<ICoreWebView2> webview;              // WebView2 实例
-  bool cookie_request_pending = false;        // cookie 请求是否进行中
-  bool cookie_saved = false;                  // cookie 是否已保存
-};
-
-/**
- * 将宽字符字符串转换为 UTF-8。
- */
-std::string wideToUtf8(const wchar_t *value);
 
 /**
  * 判断 cookie 集合是否已经包含 QQ 音乐登录态。
@@ -57,6 +38,28 @@ void applyCapturedCookie(
   const std::string &cookie,
   const std::map<std::string, std::string> &cookies
 );
+
+#ifdef _WIN32
+
+using Microsoft::WRL::Callback;
+using Microsoft::WRL::ComPtr;
+
+constexpr wchar_t kWebViewWindowClass[] = L"YuriMusicQqLoginWebView";         // WebView2 窗口类名
+constexpr wchar_t kQqMusicLoginUrl[] = L"https://y.qq.com/n/ryqq_v2/profile"; // QQ 音乐登录入口
+constexpr UINT_PTR kCookieCaptureTimerId = 1;   // cookie 捕获定时器 ID
+constexpr UINT kCookieCaptureIntervalMs = 2000; // cookie 捕获间隔
+
+struct WebViewWindowState {
+  ComPtr<ICoreWebView2Controller> controller; // WebView2 控制器
+  ComPtr<ICoreWebView2> webview;              // WebView2 实例
+  bool cookie_request_pending = false;        // cookie 请求是否进行中
+  bool cookie_saved = false;                  // cookie 是否已保存
+};
+
+/**
+ * 将宽字符字符串转换为 UTF-8。
+ */
+std::string wideToUtf8(const wchar_t *value);
 
 /**
  * 从 WebView2 cookie 列表提取 name/value 映射。
@@ -83,6 +86,76 @@ bool registerQqMusicWebViewClass(HINSTANCE instance);
  */
 void runQqMusicLoginWebView();
 
+#elif defined(__linux__)
+
+constexpr char kQqMusicLoginUrl[] = "https://y.qq.com/n/ryqq_v2/profile"; // QQ 音乐登录入口
+constexpr guint kCookieCaptureIntervalMs = 2000;                          // cookie 捕获间隔
+
+struct LoginWindowState {
+  GtkWidget *window{};                   // 登录窗口
+  WebKitWebView *webview{};              // WebKit 视图
+  WebKitCookieManager *cookie_manager{}; // cookie 管理器
+  guint capture_timer_id = 0;            // cookie 捕获定时器 ID
+  bool cookie_request_pending = false;   // cookie 请求是否进行中
+  bool cookie_saved = false;             // cookie 是否已保存
+};
+
+/**
+ * 释放 WebKit 返回的 cookie 列表。
+ */
+void freeCookieList(GList *cookie_list);
+
+/**
+ * 从 WebKit cookie 列表提取 name/value 映射。
+ */
+std::map<std::string, std::string> collectCookieMap(GList *cookie_list);
+
+/**
+ * 关闭登录窗口并结束 GTK 主循环。
+ */
+void closeLoginWindow(LoginWindowState *state);
+
+/**
+ * 向 WebKit 请求捕获当前 QQ 音乐 cookie。
+ */
+void requestCookieCapture(LoginWindowState *state);
+
+/**
+ * 处理 QQ 音乐 cookie 捕获结果。
+ */
+void onCookieCaptured(GObject *source, GAsyncResult *result, gpointer user_data);
+
+/**
+ * 定时捕获 QQ 音乐 cookie（扫码登录不会触发页面跳转）。
+ */
+gboolean onCookieCaptureTimer(gpointer user_data);
+
+/**
+ * 处理 WebKit 页面加载状态变化。
+ */
+void onLoadChanged(WebKitWebView *webview, WebKitLoadEvent event, gpointer user_data);
+
+/**
+ * 将新窗口请求交由当前视图处理。
+ */
+GtkWidget *
+onCreateWebView(WebKitWebView *webview, WebKitNavigationAction *action, gpointer user_data);
+
+/**
+ * 忽略网页发起的 window.close() 请求。
+ */
+void onCloseWebView(WebKitWebView *webview, gpointer user_data);
+
+/**
+ * 处理登录窗口销毁事件。
+ */
+void onWindowDestroy(GtkWidget *widget, gpointer user_data);
+
+/**
+ * 在 GTK 主循环中运行 QQ 音乐登录窗口。
+ */
+int runLoginWindow();
+
 #endif
 
 } // namespace
@@ -90,30 +163,13 @@ void runQqMusicLoginWebView();
 export namespace webview2 {
 
 /**
- * 启动 QQ 音乐登录 WebView2 窗口。
+ * 启动 QQ 音乐登录窗口。
  */
 void launchQQMusicLogin();
 
 } // namespace webview2
 
 namespace {
-
-#ifdef _WIN32
-
-std::string wideToUtf8(const wchar_t *value) {
-  if (value == nullptr || value[0] == L'\0') {
-    return {};
-  }
-
-  const int size = WideCharToMultiByte(CP_UTF8, 0, value, -1, nullptr, 0, nullptr, nullptr);
-  if (size <= 1) {
-    return {};
-  }
-
-  std::string result(static_cast<std::size_t>(size - 1), '\0');
-  WideCharToMultiByte(CP_UTF8, 0, value, -1, result.data(), size, nullptr, nullptr);
-  return result;
-}
 
 bool isQqMusicLoginCookie(const std::map<std::string, std::string> &cookies) {
   const bool has_uin = cookies.contains("uin");
@@ -161,6 +217,23 @@ void applyCapturedCookie(
   }
 
   yuri::info("QQ 音乐登录 cookie 已保存到 cookie.txt");
+}
+
+#ifdef _WIN32
+
+std::string wideToUtf8(const wchar_t *value) {
+  if (value == nullptr || value[0] == L'\0') {
+    return {};
+  }
+
+  const int size = WideCharToMultiByte(CP_UTF8, 0, value, -1, nullptr, 0, nullptr, nullptr);
+  if (size <= 1) {
+    return {};
+  }
+
+  std::string result(static_cast<std::size_t>(size - 1), '\0');
+  WideCharToMultiByte(CP_UTF8, 0, value, -1, result.data(), size, nullptr, nullptr);
+  return result;
 }
 
 std::map<std::string, std::string> collectCookieMap(ICoreWebView2CookieList *cookie_list) {
@@ -416,6 +489,161 @@ void runQqMusicLoginWebView() {
   reset_open_flag();
 }
 
+#elif defined(__linux__)
+
+void freeCookieList(GList *cookie_list) {
+  if (cookie_list != nullptr) {
+    // cookie 列表由 WebKit 转移所有权，需要逐个释放
+    g_list_free_full(cookie_list, reinterpret_cast<GDestroyNotify>(soup_cookie_free));
+  }
+}
+
+std::map<std::string, std::string> collectCookieMap(GList *cookie_list) {
+  std::map<std::string, std::string> cookies;
+
+  for (GList *node = cookie_list; node != nullptr; node = node->next) {
+    auto *cookie = static_cast<SoupCookie *>(node->data);
+    if (cookie == nullptr) {
+      continue;
+    }
+
+    const char *raw_name = soup_cookie_get_name(cookie);
+    const char *raw_value = soup_cookie_get_value(cookie);
+    if (raw_name == nullptr || raw_value == nullptr || raw_name[0] == '\0') {
+      continue;
+    }
+
+    cookies[raw_name] = raw_value;
+  }
+
+  return cookies;
+}
+
+void closeLoginWindow(LoginWindowState *state) {
+  if (state->window != nullptr) {
+    gtk_widget_destroy(state->window); // 触发 destroy 信号，退出 GTK 主循环
+    state->window = nullptr;
+  }
+}
+
+void requestCookieCapture(LoginWindowState *state) {
+  if (
+    state == nullptr || state->cookie_manager == nullptr || state->cookie_saved
+    || state->cookie_request_pending
+  ) {
+    return;
+  }
+
+  state->cookie_request_pending = true;
+  webkit_cookie_manager_get_cookies(
+    state->cookie_manager, kQqMusicLoginUrl, nullptr, onCookieCaptured, state
+  );
+}
+
+void onCookieCaptured(GObject *source, GAsyncResult *result, gpointer user_data) {
+  auto *state = static_cast<LoginWindowState *>(user_data);
+  state->cookie_request_pending = false;
+
+  GError *error = nullptr;
+  GList *cookie_list =
+    webkit_cookie_manager_get_cookies_finish(WEBKIT_COOKIE_MANAGER(source), result, &error);
+  if (error != nullptr) {
+    yuri::warn("读取 QQ 音乐 cookie 失败: {}", error->message);
+    g_error_free(error);
+  }
+
+  if (cookie_list == nullptr || state->cookie_saved) {
+    freeCookieList(cookie_list);
+    return;
+  }
+
+  const auto cookies = collectCookieMap(cookie_list);
+  freeCookieList(cookie_list);
+
+  if (!isQqMusicLoginCookie(cookies)) {
+    return;
+  }
+
+  const auto cookie = serializeCookies(cookies);
+  if (cookie.empty()) {
+    return;
+  }
+
+  applyCapturedCookie(cookie, cookies);
+  state->cookie_saved = true;
+  closeLoginWindow(state);
+}
+
+gboolean onCookieCaptureTimer(gpointer user_data) {
+  requestCookieCapture(static_cast<LoginWindowState *>(user_data));
+  return G_SOURCE_CONTINUE;
+}
+
+void onLoadChanged(WebKitWebView *webview, const WebKitLoadEvent event, gpointer user_data) {
+  // 页面加载完成时立即尝试捕获，扫码登录不跳转页面则依赖定时器捕获
+  if (event == WEBKIT_LOAD_FINISHED) {
+    requestCookieCapture(static_cast<LoginWindowState *>(user_data));
+  }
+}
+
+GtkWidget *
+onCreateWebView(WebKitWebView *webview, WebKitNavigationAction *action, gpointer user_data) {
+  // 新窗口请求在当前视图中打开，保证登录流程始终在同一个窗口内完成
+  return GTK_WIDGET(webview);
+}
+
+void onCloseWebView(WebKitWebView *webview, gpointer user_data) {
+  // 屏蔽 WebKit 默认的销毁顶层窗口行为，登录窗口只由用户或捕获完成后关闭
+  g_signal_stop_emission_by_name(G_OBJECT(webview), "close");
+  yuri::info("已忽略网页发起的关闭窗口请求");
+}
+
+void onWindowDestroy(GtkWidget *widget, gpointer user_data) {
+  auto *state = static_cast<LoginWindowState *>(user_data);
+  if (state->capture_timer_id != 0) {
+    g_source_remove(state->capture_timer_id);
+    state->capture_timer_id = 0;
+  }
+
+  if (!state->cookie_saved) {
+    yuri::warn("QQ 音乐登录窗口已关闭，未捕获到登录 cookie");
+  }
+
+  gtk_main_quit();
+}
+
+int runLoginWindow() {
+  if (gtk_init_check(nullptr, nullptr) == FALSE) {
+    yuri::error("初始化 GTK 失败: 无法连接到显示服务器");
+    return 1;
+  }
+
+  LoginWindowState state;
+  WebKitWebsiteDataManager *data_manager = webkit_website_data_manager_new_ephemeral(); // 临时会话
+  WebKitWebContext *context = webkit_web_context_new_with_website_data_manager(data_manager);
+  g_object_unref(data_manager); // 上下文已持有引用
+
+  state.webview = WEBKIT_WEB_VIEW(webkit_web_view_new_with_context(context));
+  state.cookie_manager = webkit_web_context_get_cookie_manager(context);
+  state.window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+  gtk_window_set_title(GTK_WINDOW(state.window), "QQ Music Login");
+  gtk_window_set_default_size(GTK_WINDOW(state.window), 1100, 760);
+  gtk_container_add(GTK_CONTAINER(state.window), GTK_WIDGET(state.webview));
+
+  g_signal_connect(state.window, "destroy", G_CALLBACK(onWindowDestroy), &state);
+  g_signal_connect(state.webview, "load-changed", G_CALLBACK(onLoadChanged), &state);
+  g_signal_connect(state.webview, "create", G_CALLBACK(onCreateWebView), nullptr);
+  g_signal_connect(state.webview, "close", G_CALLBACK(onCloseWebView), nullptr);
+  state.capture_timer_id = g_timeout_add(kCookieCaptureIntervalMs, onCookieCaptureTimer, &state);
+
+  gtk_widget_show_all(state.window);
+  webkit_web_view_load_uri(state.webview, kQqMusicLoginUrl);
+  requestCookieCapture(&state);
+
+  gtk_main(); // 阻塞直到登录成功或用户关闭窗口
+  return 0;
+}
+
 #endif
 
 } // namespace
@@ -433,8 +661,19 @@ void launchQQMusicLogin() {
   }
 
   runQqMusicLoginWebView();
+#elif defined(__linux__)
+  bool expected = false;
+  if (!login_window_open.compare_exchange_strong(expected, true)) {
+    return;
+  }
+
+  // WebKitGTK 的窗口与事件循环在调用线程内运行，需要由后台线程调用
+  yuri::info("正在打开 QQ 音乐登录窗口");
+  runLoginWindow();
+
+  login_window_open = false;
 #else
-  yuri::warn("QQ 音乐 WebView2 登录窗口仅支持 Windows");
+  yuri::warn("QQ 音乐网页登录暂不支持当前平台");
 #endif
 }
 
