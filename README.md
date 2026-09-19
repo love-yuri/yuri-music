@@ -29,6 +29,10 @@
   - Clang 19+
   - MSVC 19.38+
   - GCC 15+
+- 网页登录窗口依赖
+  - Windows：WebView2
+  - Linux：WebKitGTK（Arch 安装 `webkit2gtk-4.1`，Debian/Ubuntu 安装
+    `libwebkit2gtk-4.1-dev`）
 
 ## 构建与运行
 

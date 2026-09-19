@@ -24,8 +24,9 @@ cmake --build build
 
 CMake 4.0+, Ninja, and a compiler with C++23 module support are required (Clang 19+ on
 Linux; MSVC 19.38+ or GCC 15+ where supported). The build also expects the external
-`yuri_lib` target and 64-bit BASS libraries described by `cmake/bass.cmake`; Windows builds
-add WebView2. Use `cmake --build build --clean-first` after module dependency changes.
+`yuri_lib` target and 64-bit BASS libraries described by `cmake/bass.cmake`; the web login
+window uses WebView2 on Windows and WebKitGTK (`webkit2gtk-4.1`) on Linux. Use
+`cmake --build build --clean-first` after module dependency changes.
 
 No automated tests or coverage threshold are currently configured. At minimum, contributors
 must complete a clean build and manually exercise the affected page, playback control, or
