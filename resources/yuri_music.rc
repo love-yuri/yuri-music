@@ -1,0 +1,2 @@
+// GLFW uses this resource as the default window icon on Windows.
+GLFW_ICON ICON "yuri_music.ico"
