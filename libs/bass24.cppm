@@ -387,7 +387,8 @@ double BassPlayer::positionSeconds() const {
   if (pos == static_cast<QWORD>(-1)) {
     return 0.0;
   }
-  return BASS_ChannelBytes2Seconds(stream_, pos);
+  const double seconds = BASS_ChannelBytes2Seconds(stream_, pos);
+  return seconds == -1.0 ? 0.0 : seconds;
 }
 
 bool BassPlayer::setVolume(const float value) {
@@ -509,7 +510,8 @@ void BassPlayer::updateDurationSeconds() {
   duration_seconds = 0.0;
   const auto len = BASS_ChannelGetLength(stream_, BASS_POS_BYTE);
   if (len != static_cast<QWORD>(-1)) {
-    duration_seconds = BASS_ChannelBytes2Seconds(stream_, len);
+    const double seconds = BASS_ChannelBytes2Seconds(stream_, len);
+    if (seconds != -1.0) duration_seconds = seconds;
   }
 }
 
