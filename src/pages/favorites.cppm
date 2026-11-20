@@ -335,7 +335,7 @@ std::string formatSingers(const std::vector<SingerType> &singers) {
 }
 
 SongInfo makeSongInfo(const SonglistType &music) {
-  return SongInfo {
+  return SongInfo{
     .title = std::string(music.title),
     .artist = formatSingers(music.singer),
     .album_name = std::string(music.album.name),

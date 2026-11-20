@@ -98,7 +98,7 @@ std::string sanitizeFileName(std::string name) {
   constexpr std::string_view kInvalidCharacters = R"(<>:"/\|?*)";
   for (char &ch : name) {
     if (
-      static_cast<unsigned char>(ch) < 32 || kInvalidCharacters.find(ch) != std::string_view::npos
+      static_cast<unsigned char>(ch) < 32 || kInvalidCharacters.contains(ch)
     ) {
       ch = '_';
     }
@@ -259,7 +259,7 @@ private:
   /** 播放队列中的歌曲记录。 */
   struct PlaybackEntry {
     SongInfo song{};                            // 歌曲信息
-    std::optional<std::size_t> context_index{}; // 所属上下文位置
+    std::optional<std::size_t> context_index; // 所属上下文位置
   };
 
   /**
@@ -298,14 +298,14 @@ private:
   /** 处理底层自然播放完成事件。 */
   void onBassFinished();
 
-  std::string context_id{};                             // 当前播放上下文标识
-  std::vector<SongInfo> context_songs{};                // 当前播放上下文歌曲
-  std::optional<std::size_t> context_index{};           // 当前上下文游标
+  std::string context_id;                               // 当前播放上下文标识
+  std::vector<SongInfo> context_songs;                  // 当前播放上下文歌曲
+  std::optional<std::size_t> context_index;             // 当前上下文游标
   std::optional<PlaybackEntry> current_entry{};         // 当前播放记录
-  std::vector<PlaybackEntry> history{};                 // 已播放历史
-  std::deque<SongInfo> next_queue{};                    // 显式下一首队列
+  std::vector<PlaybackEntry> history;                   // 已播放历史
+  std::deque<SongInfo> next_queue;                      // 显式下一首队列
   std::mt19937 random_engine{ std::random_device{}() }; // 随机播放引擎
-  std::atomic_uint64_t playback_generation{};           // 播放请求版本
+  std::atomic_uint64_t playback_generation;             // 播放请求版本
   bool random_playback = false;                         // 是否随机播放
 };
 
@@ -492,7 +492,7 @@ void PlaybackController::beginPlayback(const SongInfo &song) {
         }
       }
 
-      ui::dispatcher.post([this, song, url = std::move(url), source_format, generation]() mutable {
+      ui::dispatcher.post([this, song, url = std::move(url), source_format, generation] mutable {
         if (playback_generation.load() != generation) {
           return;
         }
