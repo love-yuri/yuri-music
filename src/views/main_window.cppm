@@ -424,7 +424,7 @@ void MainWindow::onPlaybackStateChanged(const bass24::PlaybackState state) {
 }
 
 void MainWindow::onPlaybackDurationChanged(const double duration_seconds) {
-  playback_duration_seconds = std::max(0.0, duration_seconds);
+  playback_duration_seconds = duration_seconds;
   player_bar->setPlaybackDuration(playback_duration_seconds);
   if (playback_duration_seconds <= 0.001) {
     player_bar->setPlaybackPosition(0.0);
@@ -433,9 +433,8 @@ void MainWindow::onPlaybackDurationChanged(const double duration_seconds) {
 
 // ReSharper disable once CppMemberFunctionMayBeStatic
 void MainWindow::onSeekRequested(const double ratio) const {
-  const double safe_ratio = std::clamp(ratio, 0.0, 1.0);
-  if (playback::controller.seekRatio(safe_ratio)) {
-    player_bar->setPlaybackPosition(playback_duration_seconds * safe_ratio);
+  if (playback::controller.seekRatio(ratio)) {
+    player_bar->setPlaybackPosition(playback_duration_seconds * ratio);
   }
 }
 
@@ -477,10 +476,7 @@ void MainWindow::onNextClicked() const {
 }
 
 void MainWindow::syncPlaybackPosition() {
-  if (
-    player_bar == nullptr || !player_bar->showing()
-    || playback_state != bass24::PlaybackState::playing
-  ) {
+  if (!player_bar->showing() || playback_state != bass24::PlaybackState::playing) {
     return;
   }
 

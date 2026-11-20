@@ -476,10 +476,6 @@ bool BassPlayer::installPlaybackSyncs() {
 }
 
 void CALLBACK BassPlayer::onPlaybackEnded(const HSYNC, const DWORD, const DWORD, void *const user) {
-  if (user == nullptr) {
-    return;
-  }
-
   auto *const player = static_cast<BassPlayer *>(user);
   player->setPlaybackState(PlaybackState::stopped);
   player->finished.emit();
@@ -487,10 +483,6 @@ void CALLBACK BassPlayer::onPlaybackEnded(const HSYNC, const DWORD, const DWORD,
 
 void CALLBACK
 BassPlayer::onPlaybackStalled(const HSYNC, const DWORD, const DWORD data, void *const user) {
-  if (user == nullptr) {
-    return;
-  }
-
   auto *const player = static_cast<BassPlayer *>(user);
   const auto current_state = player->playback_state.load();
   if (current_state == PlaybackState::paused || current_state == PlaybackState::stopped) {

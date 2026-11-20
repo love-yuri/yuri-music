@@ -436,7 +436,7 @@ void PlaybackController::togglePause() const {
 }
 
 bool PlaybackController::seekRatio(const double ratio) const {
-  return bass24::bass24_player.seekRatio(std::clamp(ratio, 0.0, 1.0));
+  return bass24::bass24_player.seekRatio(ratio);
 }
 
 bool PlaybackController::setVolume(const float volume) const {

@@ -159,7 +159,7 @@ public:
 
   /**
    * 设置当前音量。
-   * @param value 音量值 [0, 1]
+   * @param value 有限的音量值 [0, 1]，由调用方保证范围
    */
   void setVolume(float value) noexcept;
 
@@ -255,19 +255,19 @@ public:
 
   /**
    * 设置当前歌曲总时长。
-   * @param value_seconds 歌曲总时长（秒）
+   * @param value_seconds 非负且有限的歌曲总时长（秒）
    */
   void setPlaybackDuration(double value_seconds);
 
   /**
    * 更新播放位置。
-   * @param position_seconds 当前播放位置（秒）
+   * @param position_seconds 非负且有限的当前播放位置（秒）
    */
   void setPlaybackPosition(double position_seconds);
 
   /**
    * 设置音量。
-   * @param value 音量值 [0, 1]
+   * @param value 有限的音量值 [0, 1]，由调用方保证范围
    */
   void setVolume(float value) noexcept;
 
@@ -472,8 +472,7 @@ void VolumeSliderPopup::paint(SkCanvas *canvas) {
     track
   );
 
-  const float ratio = std::clamp(volume_, 0.0f, 1.0f);
-  const float thumb_y = std::round(kTrackBottom - (kTrackBottom - kTrackTop) * ratio);
+  const float thumb_y = std::round(kTrackBottom - (kTrackBottom - kTrackTop) * volume_);
   SkPaint active;
   active.setAntiAlias(true);
   active.setColor(kVolFill);
@@ -508,11 +507,10 @@ void VolumeSliderPopup::paint(SkCanvas *canvas) {
 }
 
 void VolumeSliderPopup::setVolume(const float value) noexcept {
-  const float next = std::clamp(value, 0.0f, 1.0f);
-  if (std::abs(volume_ - next) <= 0.001f) {
+  if (std::abs(volume_ - value) <= 0.001f) {
     return;
   }
-  volume_ = next;
+  volume_ = value;
   markLayoutDirty();
 }
 
@@ -635,10 +633,9 @@ void PlayerBar::setLoading(const bool value) noexcept {
 }
 
 void PlayerBar::setPlaybackDuration(const double value_seconds) {
-  const double next_duration = std::max(0.0, value_seconds);
-  const int next_display_second = static_cast<int>(std::lround(next_duration));
-  bool changed = std::abs(duration_seconds - next_duration) > 0.001;
-  duration_seconds = next_duration;
+  const int next_display_second = static_cast<int>(std::lround(value_seconds));
+  bool changed = std::abs(duration_seconds - value_seconds) > 0.001;
+  duration_seconds = value_seconds;
 
   if (duration_display_second != next_display_second) {
     duration_display_second = next_display_second;
@@ -652,17 +649,16 @@ void PlayerBar::setPlaybackDuration(const double value_seconds) {
 }
 
 void PlayerBar::setPlaybackPosition(const double position_seconds) {
-  const double safe_position = std::max(0.0, position_seconds);
   const float next_progress =
     duration_seconds > 0.001 ?
-      static_cast<float>(std::clamp(safe_position / duration_seconds, 0.0, 1.0)) :
+      static_cast<float>(std::clamp(position_seconds / duration_seconds, 0.0, 1.0)) :
       0.0f;
 
   bool changed = std::abs(progress_ - next_progress) > 0.001f;
   progress_ = next_progress;
 
   if (
-    const int elapsed_seconds = static_cast<int>(safe_position);
+    const int elapsed_seconds = static_cast<int>(position_seconds);
     elapsed_seconds != elapsed_display_seconds
   ) {
     elapsed_display_seconds = elapsed_seconds;
@@ -676,9 +672,8 @@ void PlayerBar::setPlaybackPosition(const double position_seconds) {
 }
 
 void PlayerBar::setVolume(const float value) noexcept {
-  const float next = std::clamp(value, 0.0f, 1.0f);
-  if (std::abs(volume_ - next) <= 0.001f) return;
-  volume_ = next;
+  if (std::abs(volume_ - value) <= 0.001f) return;
+  volume_ = value;
   markLayoutDirty();
 }
 
@@ -1086,7 +1081,7 @@ void PlayerBar::drawProgressBar(SkCanvas *canvas, float cx, float cy, float max_
   canvas->drawRoundRect(SkRect::MakeXYWH(x0, y0, w, kProgressH), r, r, track);
 
   // 填充
-  const float fill_w = std::round(w * std::clamp(progress_, 0.0f, 1.0f));
+  const float fill_w = std::round(w * progress_);
   if (fill_w <= 0.0f) return;
 
   SkPaint fill;
