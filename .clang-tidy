@@ -1,0 +1,14 @@
+Checks:
+  - '-*'                                     # 先禁用所有检查作为基线
+  - 'readability-*'                          # 启用所有 readability 类检查
+  - '-readability-qualified-auto'            # 禁用：不要求为 auto 推导的指针显式添加 *
+  - '-readability-make-member-function-const' # 禁用：不提示将成员函数改为 const
+  - '-readability-non-const-parameter'       # 禁用：误报，Skia 接口 const 修饰不完善
+  - '-readability-uppercase-literal-suffix'  # 禁用：不强制浮点字面量后缀大写 F
+  - '-readability-identifier-length'         # 禁用：不检查变量名长度（如 x、y）
+  - '-readability-isolate-declaration'       # 禁用：不强制单条语句只声明一个变量
+  - '-readability-magic-numbers'             # 禁用：不强制将魔法数字替换为命名常量
+  - '-readability-math-missing-parentheses'  # 禁用：不强制为遵循运算符优先级的数学表达式添加括号
+  - '-readability-implicit-bool-conversion'  # 禁用：允许指针等类型隐式转换为 bool
+  - '-readability-braces-around-statements' # 禁用：不强制为单条语句添加花括号
+  - '-readability-convert-member-functions-to-static'  # 禁用：不强制将不访问成员变量的成员函数改为 static
