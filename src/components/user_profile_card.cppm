@@ -58,7 +58,7 @@ public:
   explicit UserProfileCard(bool compact, Widget *parent = nullptr);
   ~UserProfileCard() override;
 
-  void layoutChildren() override;
+  void layout_children() override;
   void paint(SkCanvas *canvas) override;
 
 private:
@@ -78,28 +78,27 @@ private:
 UserProfileCard::UserProfileCard(const bool compact, Widget *parent) :
   Box(parent), compact_(compact) {
   radius = compact_ ? 0.0f : 18.0f;
-  render_bg.setColor(kProfileCardBg);
+  render_bg.set_color(kProfileCardBg);
   render_border.setColor(kProfileCardBorder);
   render_border.setWidth(1.0f);
 
-  name_text.setFontSize(compact_ ? 14.0f : 26.0f);
-  name_text.setColor(kProfileName);
-  name_text.setAlignment(Alignment::CenterLeft);
+  name_text.set_font_size(compact_ ? 14.0f : 26.0f);
+  name_text.set_color(kProfileName);
+  name_text.set_alignment(Alignment::CenterLeft);
 
-  status_text.setFontSize(14.0f);
-  status_text.setColor(kProfileMuted);
-  status_text.setAlignment(Alignment::CenterLeft);
+  status_text.set_font_size(14.0f);
+  status_text.set_color(kProfileMuted);
+  status_text.set_alignment(Alignment::CenterLeft);
 
-  avatar_text.setFontSize(compact_ ? 14.0f : 24.0f);
-  avatar_text.setColor(skia_colors::white);
-  avatar_text.setAlignment(Alignment::Center);
+  avatar_text.set_font_size(compact_ ? 14.0f : 24.0f);
+  avatar_text.set_color(skia_colors::white);
+  avatar_text.set_alignment(Alignment::Center);
 
   if (compact_) {
-    setMinHeight(54.0f);
-    setMaxHeight(54.0f);
+    set_fixed_height(54.0f);
   } else {
-    setMinHeight(206.0f);
-    setMaxHeight(232.0f);
+    set_max_height(232.0f);
+    set_min_height(206.0f);
   }
 
   user_profile_store.status_changed.connect<&UserProfileCard::updateTextNodes>(this);
@@ -110,14 +109,14 @@ UserProfileCard::~UserProfileCard() {
   user_profile_store.status_changed.disconnect(this);
 }
 
-void UserProfileCard::layoutChildren() {
-  render_bg.update(borderRect());
-  render_border.update(borderRect());
+void UserProfileCard::layout_children() {
+  render_bg.update(local_bounds());
+  render_border.update(local_bounds());
 }
 
 void UserProfileCard::paint(SkCanvas *canvas) {
   if (!compact_) {
-    render_bg.render(canvas);
+    render_bg.draw(canvas);
 
     SkPaint shine;
     shine.setAntiAlias(true);
@@ -132,10 +131,10 @@ void UserProfileCard::paint(SkCanvas *canvas) {
   const float avatar_y = compact_ ? (height_ - avatar_size) * 0.5f : 30.0f;
   drawAvatar(canvas, SkRect::MakeXYWH(avatar_x, avatar_y, avatar_size, avatar_size));
 
-  name_text.render(canvas);
+  name_text.draw(canvas);
   if (!compact_) {
-    status_text.render(canvas);
-    render_border.render(canvas);
+    status_text.draw(canvas);
+    render_border.draw(canvas);
   } else {
     SkPaint divider;
     divider.setAntiAlias(true);
@@ -148,9 +147,9 @@ void UserProfileCard::updateTextNodes() {
   const std::string_view name =
     user_profile_store.loggedIn() ? user_profile_store.displayName() : "未登录";
 
-  name_text.setText(name);
-  status_text.setText(user_profile_store.status());
-  avatar_text.setText(avatarLabel());
+  name_text.set_text(name);
+  status_text.set_text(user_profile_store.status());
+  avatar_text.set_text(avatarLabel());
   loadAvatarImage(user_profile_store.avatarUrl());
 
   if (compact_) {
@@ -224,7 +223,7 @@ void UserProfileCard::drawAvatar(SkCanvas *canvas, const SkRect &rect) {
   );
 
   avatar_text.update(rect);
-  avatar_text.render(canvas);
+  avatar_text.draw(canvas);
 }
 
 } // namespace components

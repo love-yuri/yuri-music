@@ -24,7 +24,7 @@ public:
                          std::string_view link = "",
                          Widget *parent = nullptr);
 
-  void layoutChildren() override;
+  void layout_children() override;
   void paint(SkCanvas *canvas) override;
 
 private:
@@ -36,23 +36,23 @@ SectionHeader::SectionHeader(const std::string_view title,
                              const std::string_view link,
                              Widget *parent) :
   Widget(parent), title_text_(title), link_text_(link) {
-  title_text_.setAlignment(Alignment::CenterLeft);
-  title_text_.setFontSize(15.5f);
-  title_text_.setColor(kTextColor);
+  title_text_.set_alignment(Alignment::CenterLeft);
+  title_text_.set_font_size(15.5f);
+  title_text_.set_color(kTextColor);
 
-  link_text_.setAlignment(Alignment::CenterRight);
-  link_text_.setFontSize(12);
-  link_text_.setColor(kAccentColor);
+  link_text_.set_alignment(Alignment::CenterRight);
+  link_text_.set_font_size(12);
+  link_text_.set_color(kAccentColor);
 }
 
-void SectionHeader::layoutChildren() {
-  title_text_.update(contentRect());
-  link_text_.update(contentRect());
+void SectionHeader::layout_children() {
+  title_text_.update(local_bounds());
+  link_text_.update(local_bounds());
 }
 
 void SectionHeader::paint(SkCanvas *canvas) {
-  title_text_.render(canvas);
-  link_text_.render(canvas);
+  title_text_.draw(canvas);
+  link_text_.draw(canvas);
 }
 
 } // namespace components

@@ -5,7 +5,6 @@ export module components:quick_card;
 
 import std;
 import yuri.ui;
-import yuri.core;
 import yuri.skia;
 import yuri.glfw.api;
 
@@ -16,198 +15,158 @@ using namespace ui::animation;
 using namespace ui::algorithm;
 using namespace skia;
 
-constexpr SkColor kCardBgColor = ColorFromARGB(154, 255, 255, 255);
-constexpr SkColor kCardHoverColor = ColorFromARGB(212, 255, 255, 255);
-constexpr SkColor kCardPressColor = ColorFromARGB(235, 248, 250, 252);
-constexpr SkColor kCardBorder = ColorFromARGB(120, 255, 255, 255);
-constexpr SkColor kQuickTitleColor = ColorFromARGB(255, 23, 31, 44);
-constexpr SkColor kQuickSubtitleColor = ColorFromARGB(172, 58, 70, 88);
-constexpr SkColor kShadowColor = ColorFromARGB(26, 25, 36, 52);
-
-// 图标尺寸
-static constexpr float kIconSize = 46.0f;
-// 图标圆角
-static constexpr float kIconRadius = 12.0f;
-
 export namespace components {
 
-class QuickCard : public Box {
+/** 使用按钮交互和样式绘制带图标的推荐卡片。 */
+class QuickCard : public Button {
 public:
-  Signal<> clicked; // 点击事件
+  constexpr static auto kCardRadius = 12.0f;                                  // 卡片圆角
+  constexpr static auto kIconSize = 46.0f;                                    // 图标尺寸
+  constexpr static auto kIconInset = 16.0f;                                   // 图标左侧间距
+  constexpr static auto kQuickTitleColor = ColorFromARGB(255, 23, 31, 44);    // 标题色
+  constexpr static auto kQuickSubtitleColor = ColorFromARGB(172, 58, 70, 88); // 副标题色
 
-  // 创建快捷入口卡片
-  QuickCard(std::string_view title,
-            std::string_view subtitle,
-            SkColor icon_color,
-            Widget *parent = nullptr);
+  /**
+   * 创建快捷入口卡片。
+   * @param title 标题
+   * @param subtitle 副标题
+   * @param icon_color 图标主色
+   * @param parent 父控件
+   */
+  QuickCard(std::string_view title, std::string_view subtitle, SkColor icon_color, Widget *parent);
 
-  // 更新内部绘制节点布局
-  void layoutChildren() override;
-  // 绘制卡片背景、图标和文本
+  /** 更新内部绘制节点的位置。 */
+  void layout_children() override;
+
+  /**
+   * 绘制卡片背景、图标和文本。
+   * @param canvas 目标画布
+   */
   void paint(SkCanvas *canvas) override;
 
 protected:
-  // 鼠标进入时启动悬浮动效
-  void onMouseEnter(float x, float y) override;
-  // 鼠标离开时还原悬浮动效
-  void onMouseLeave(float x, float y) override;
-  // 鼠标按下时启动按压动效
-  void onMouseLeftPressed(float x, float y) override;
-  // 鼠标释放时触发点击事件
-  void onMouseLeftReleased(float x, float y) override;
+  /**
+   * 更新悬停样式并抬升卡片。
+   * @param x 鼠标本地横坐标
+   * @param y 鼠标本地纵坐标
+   */
+  void on_mouse_enter(float x, float y) override;
+
+  /**
+   * 还原样式和卡片位置。
+   * @param x 鼠标本地横坐标
+   * @param y 鼠标本地纵坐标
+   */
+  void on_mouse_leave(float x, float y) override;
 
 private:
-  // 设置背景色
-  void setBackgroundColor(SkColor color) noexcept;
-  // 设置悬浮动画进度
-  void setHoverT(float t) noexcept { hover_t = t; }
-  // 设置按压动画进度
-  void setPressT(float t) noexcept { press_t = t; }
-
-  RenderBackground icon_bg;        // icon 背景
-  float icon_radius = kIconRadius; // icon 圆角大小
-  RenderText title_text;           // 标题
-  RenderText subtitle_text;        // 子标题
-  SkColor bg_color = kCardBgColor;        // 当前背景色
-  float offset_y = 0.f;                   // 视觉Y偏移（上浮动画用）
-  float hover_t = 0.f;                    // 悬浮动画进度
-  float press_t = 0.f;                    // 按压动画进度
-  SkColor icon_color_ = skia_colors::black; // 图标主色
-  bool is_pressed = false;                // 是否正在被按下
+  RenderBackground icon_bg{};      // 图标背景
+  float icon_radius = kCardRadius; // 图标圆角
+  RenderText title_text{};         // 标题
+  RenderText subtitle_text{};      // 副标题
+  SkColor icon_color_;             // 图标主色
+  float hover_t = 0.0f;            // 悬浮动画进度
 };
 
-QuickCard::QuickCard(const std::string_view title,
-                     const std::string_view subtitle,
-                     const SkColor icon_color,
-                     Widget *parent) :
-  Box(parent), title_text(title), subtitle_text(subtitle), icon_color_(icon_color) {
+QuickCard::QuickCard(
+  const std::string_view title,
+  const std::string_view subtitle,
+  const SkColor icon_color,
+  Widget *parent
+) : Button("", parent), title_text(title), subtitle_text(subtitle), icon_color_(icon_color) {
+  constexpr ButtonStyle base{
+    .background = 0x9affffff,
+    .border = 0x78ffffff,
+    .radius = kCardRadius,
+  };
+  ButtonStyles styles{ base, base, base, base };
+  styles.hovered.background = 0xd4ffffff;
+  styles.hovered.border = 0xa0ffffff;
+  styles.pressed.background = 0xebf8fafc;
+  styles.pressed.border = styles.hovered.border;
+  styles.disabled.background = 0x62ffffff;
+  set_style(styles);
 
-  // 卡片背景
-  render_bg.setColor(kCardBgColor);
-  render_border.setWidth(1.0);
-  render_border.setColor(kCardBorder);
-  radius = 12;
-
-  // 图标色块
-  icon_bg.setColor(icon_color);
+  icon_bg.set_color(icon_color);
   icon_bg.radius = &icon_radius;
-
-  // 标题
-  title_text.setFontSize(14);
-  title_text.setColor(kQuickTitleColor);
-  title_text.setAlignment(Alignment::CenterLeft);
-
-  // 副标题
-  subtitle_text.setFontSize(12);
-  subtitle_text.setColor(kQuickSubtitleColor);
-  subtitle_text.setAlignment(Alignment::CenterLeft);
-
-  // 固定高度
-  setMaxHeight(78);
-  setMinHeight(78);
-  setPadding(Insets::fromLeft(16));
+  title_text.set_font_size(14.0f);
+  title_text.set_color(kQuickTitleColor);
+  title_text.set_alignment(Alignment::CenterLeft);
+  subtitle_text.set_font_size(12.0f);
+  subtitle_text.set_color(kQuickSubtitleColor);
+  subtitle_text.set_alignment(Alignment::CenterLeft);
+  set_fixed_height(78.0f);
 }
 
-void QuickCard::onMouseEnter(float, float) {
-  is_pressed = false;
-  render_border.setColor(ColorFromARGB(160, 255, 255, 255));
-  window()->setCursor(glfw::CursorType::Hand);
-  startAnimation<&QuickCard::setBackgroundColor>(bg_color, kCardHoverColor, 180.0f, CubicBezier::EaseOut());
-  startAnimation<&QuickCard::setHoverT>(hover_t, 1.0f, 180.0f, CubicBezier::EaseOut());
-  startAnimation(offset_y, -5.f, 180.f, &offset_y, CubicBezier::EaseOut());
+void QuickCard::on_mouse_enter(const float x, const float y) {
+  Button::on_mouse_enter(x, y);
+  if (enabled()) window()->setCursor(glfw::CursorType::Hand);
+  start_animation(hover_t, 1.0f, 180.0f, &hover_t, CubicBezier::EaseOut());
 }
 
-void QuickCard::onMouseLeave(float, float) {
-  is_pressed = false;
-  render_border.setColor(kCardBorder);
+void QuickCard::on_mouse_leave(const float x, const float y) {
+  Button::on_mouse_leave(x, y);
   window()->setCursor(glfw::CursorType::Arrow);
-  startAnimation<&QuickCard::setBackgroundColor>(bg_color, kCardBgColor, 220.0f, CubicBezier::EaseOut());
-  startAnimation<&QuickCard::setHoverT>(hover_t, 0.0f, 220.0f, CubicBezier::EaseOut());
-  startAnimation<&QuickCard::setPressT>(press_t, 0.0f, 140.0f, CubicBezier::EaseOut());
-  startAnimation(offset_y, 0.f, 220.0f, &offset_y, CubicBezier::EaseOut());
+  start_animation(hover_t, 0.0f, 220.0f, &hover_t, CubicBezier::EaseOut());
 }
 
-void QuickCard::onMouseLeftPressed(float, float) {
-  is_pressed = true;
-  startAnimation<&QuickCard::setBackgroundColor>(bg_color, kCardPressColor, 90.0f, CubicBezier::EaseOut());
-  startAnimation<&QuickCard::setPressT>(press_t, 1.0f, 70.0f, CubicBezier::EaseOut());
-}
+void QuickCard::layout_children() {
+  const float icon_y = (height_ - kIconSize) * 0.5f;
+  icon_bg.update(SkRect::MakeXYWH(kIconInset, icon_y, kIconSize, kIconSize));
 
-void QuickCard::onMouseLeftReleased(float, float) {
-  is_pressed = false;
-  clicked.emit();
-  startAnimation<&QuickCard::setBackgroundColor>(bg_color, kCardHoverColor, 120.0f, CubicBezier::EaseOut());
-  startAnimation<&QuickCard::setPressT>(press_t, 0.0f, 170.0f, CubicBezier::EaseOut());
-}
-
-void QuickCard::setBackgroundColor(const SkColor color) noexcept {
-  bg_color = color;
-  render_bg.setColor(color);
-}
-
-void QuickCard::layoutChildren() {
-  const auto rect = contentRect();
-  const float pad_left = padding_.left;
-  const float pad_top = padding_.top;
-
-  // 背景
-  render_bg.setColor(bg_color);
-  render_bg.update(borderRect());
-  render_border.update(borderRect());
-
-  // 图标：左侧垂直居中
-  const float icon_x = pad_left;
-  const float icon_y = pad_top + (rect.height() - kIconSize) * 0.5f;
-  icon_bg.update(SkRect::MakeXYWH(icon_x, icon_y, kIconSize, kIconSize));
-
-  // 文字区：图标右边间隔 16px
-  const float text_x = icon_x + kIconSize + 16.0f;
-  const float text_w = rect.width() - text_x;
-  const float center_y = pad_top + (rect.height() - 36.0f) * 0.5f; // 标题+副标题总高约36
-
-  title_text.update(SkRect::MakeXYWH(text_x, center_y, text_w, 18.0f));
-  subtitle_text.update(SkRect::MakeXYWH(text_x, center_y + 20.0f, text_w, 16.0f));
+  constexpr float kTextX = kIconInset + kIconSize + 16.0f;
+  const float text_w = std::max(0.0f, width_ - kTextX - kIconInset);
+  const float text_y = (height_ - 36.0f) * 0.5f;
+  title_text.update(SkRect::MakeXYWH(kTextX, text_y, text_w, 18.0f));
+  subtitle_text.update(SkRect::MakeXYWH(kTextX, text_y + 20.0f, text_w, 16.0f));
 }
 
 void QuickCard::paint(SkCanvas *canvas) {
   canvas->save();
-  canvas->translate(0, offset_y);
-
-  const float scale = 1.0f - press_t * 0.018f;
-  canvas->translate(width_ * 0.5f, height_ * 0.5f);
-  canvas->scale(scale, scale);
-  canvas->translate(-width_ * 0.5f, -height_ * 0.5f);
+  canvas->translate(0.0f, -5.0f * hover_t);
+  if (state() == ButtonState::Pressed) {
+    canvas->translate(width_ * 0.5f, height_ * 0.5f);
+    canvas->scale(0.982f, 0.982f);
+    canvas->translate(-width_ * 0.5f, -height_ * 0.5f);
+  }
 
   const float sigma = 8.0f + hover_t * 4.0f;
-  auto shadow_rect = borderRect().makeOffset(0, 6.0f + hover_t * 1.5f).makeInset(7.0f, 7.0f);
-  auto layer_bounds = shadow_rect.makeOutset(sigma * 3.0f, sigma * 3.0f);
+  const auto shadow_rect =
+    local_bounds().makeOffset(0, 6.0f + hover_t * 1.5f).makeInset(7.0f, 7.0f);
+  const auto layer_bounds = shadow_rect.makeOutset(sigma * 3.0f, sigma * 3.0f);
   SkPaint shadow_layer;
   shadow_layer.setImageFilter(SkImageFilters::Blur(sigma, sigma, nullptr));
   SkPaint shadow;
   shadow.setAntiAlias(true);
   shadow.setColor(ColorFromARGB(static_cast<U8CPU>(14.0f + hover_t * 8.0f), 25, 36, 52));
   canvas->saveLayer(&layer_bounds, &shadow_layer);
-  canvas->drawRoundRect(shadow_rect, radius, radius, shadow);
+  canvas->drawRoundRect(shadow_rect, kCardRadius, kCardRadius, shadow);
   canvas->restore();
 
-  render_bg.render(canvas);
+  Button::paint(canvas);
 
   SkPaint shine;
   shine.setAntiAlias(true);
   shine.setColor(ColorFromARGB(static_cast<U8CPU>(34.0f + hover_t * 28.0f), 255, 255, 255));
-  canvas->drawRoundRect(SkRect::MakeXYWH(1.0f, 1.0f, width_ - 2.0f, height_ * 0.45f), radius, radius, shine);
+  canvas->drawRoundRect(
+    SkRect::MakeXYWH(1.0f, 1.0f, std::max(0.0f, width_ - 2.0f), height_ * 0.45f),
+    kCardRadius,
+    kCardRadius,
+    shine
+  );
 
-  icon_bg.render(canvas);
+  icon_bg.draw(canvas);
 
-  SkPaint iconGlow;
-  iconGlow.setAntiAlias(true);
-  iconGlow.setColor(lerp(icon_color_, ColorFromARGB(255, 255, 255, 255), 0.78f));
-  iconGlow.setAlphaf(0.42f + hover_t * 0.18f);
-  canvas->drawCircle(16.0f + kIconSize * 0.62f, height_ * 0.5f - 7.0f, 10.0f + hover_t * 2.0f, iconGlow);
+  SkPaint icon_glow;
+  icon_glow.setAntiAlias(true);
+  icon_glow.setColor(lerp(icon_color_, skia_colors::white, 0.78f));
+  icon_glow.setAlphaf(0.42f + hover_t * 0.18f);
+  canvas->drawCircle(
+    kIconInset + kIconSize * 0.62f, height_ * 0.5f - 7.0f, 10.0f + hover_t * 2.0f, icon_glow
+  );
 
-  title_text.render(canvas);
-  subtitle_text.render(canvas);
-  render_border.render(canvas);
+  title_text.draw(canvas);
+  subtitle_text.draw(canvas);
   canvas->restore();
 }
 

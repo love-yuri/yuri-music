@@ -5,39 +5,65 @@ export module pages:home;
 
 import std;
 import yuri.ui;
-import yuri.core;
 import yuri.skia;
 import components;
 
 using namespace ui::layout;
 using namespace ui::widgets;
-using namespace ui::render;
 using namespace skia;
 using namespace components;
 
-constexpr SkColor kHomeTitleColor = ColorFromARGB(255, 20, 26, 36);
-constexpr SkColor kHomeSubtitleColor = ColorFromARGB(178, 55, 68, 87);
-constexpr SkColor kHomePageFill = ColorFromARGB(104, 255, 255, 255);
-constexpr SkColor kHomeHeaderFill = ColorFromARGB(70, 255, 255, 255);
-constexpr SkColor kHomeHeaderStroke = ColorFromARGB(66, 255, 255, 255);
+namespace {
 
-// 图标颜色
-constexpr SkColor kIconBlue = ColorFromARGB(255, 42, 140, 233);
-constexpr SkColor kIconRose = ColorFromARGB(255, 255, 76, 119);
-constexpr SkColor kIconTeal = ColorFromARGB(255, 16, 178, 180);
-constexpr SkColor kIconOrange = ColorFromARGB(255, 245, 155, 54);
+constexpr SkColor kHomeTitleColor = ColorFromARGB(255, 20, 26, 36);     // 首页标题色
+constexpr SkColor kHomeSubtitleColor = ColorFromARGB(178, 55, 68, 87);  // 首页副标题色
+constexpr SkColor kHomePageFill = ColorFromARGB(104, 255, 255, 255);    // 页面底色
+constexpr SkColor kHomeHeaderFill = ColorFromARGB(70, 255, 255, 255);   // 页眉底色
+constexpr SkColor kHomeHeaderStroke = ColorFromARGB(66, 255, 255, 255); // 页眉边线色
+constexpr Insets kHomePadding(34.0f, 28.0f, 36.0f, 28.0f);              // 首页内容内边距
+constexpr float kWideGrid = 560.0f;                                     // 改用两列的内容宽度
+constexpr float kGridTop = 148.0f;   // 推荐列表相对内容顶部的距离
+constexpr float kCardHeight = 82.0f; // 推荐卡片高度
+constexpr float kRowGap = 14.0f;     // 卡片行间距
 
-export namespace pages {
+constexpr SkColor kIconBlue = ColorFromARGB(255, 42, 140, 233);   // 蓝色图标
+constexpr SkColor kIconRose = ColorFromARGB(255, 255, 76, 119);   // 玫红图标
+constexpr SkColor kIconTeal = ColorFromARGB(255, 16, 178, 180);   // 青色图标
+constexpr SkColor kIconOrange = ColorFromARGB(255, 245, 155, 54); // 橙色图标
 
-// 首页
-class HomePage : public Widget {
+/**
+ * 根据外部宽度选择推荐卡片的列数。
+ * @param width 滚动视口宽度
+ */
+std::size_t columnCount(float width);
+
+std::size_t columnCount(const float width) {
+  return width - kHomePadding.left - kHomePadding.right >= kWideGrid ? 2 : 1;
+}
+
+/** 包含标题和推荐卡片的可滚动内容。 */
+class HomeContent : public Widget {
 public:
-  // 创建首页内容
-  explicit HomePage(Widget *parent = nullptr);
-  // 绘制首页背景
+  /**
+   * 创建首页内容。
+   * @param parent 首页滚动视口
+   */
+  explicit HomeContent(Widget *parent);
+
+  /**
+   * 绘制首页背景。
+   * @param canvas 目标画布
+   */
   void paint(SkCanvas *canvas) override;
-  // 更新首页内容布局
-  void layoutChildren() override;
+
+  /** 更新标题与推荐卡片布局。 */
+  void layout_children() override;
+
+  /**
+   * 按视口宽度计算显示完整内容所需的高度。
+   * @param width 滚动视口宽度
+   */
+  [[nodiscard]] float requiredHeight(float width) const;
 
 private:
   Text *greeting_text{};                         // 标题
@@ -46,65 +72,58 @@ private:
   std::vector<QuickCard *> recommendation_cards; // 推荐卡片
 };
 
-HomePage::HomePage(Widget *parent) :
+HomeContent::HomeContent(Widget *parent) :
   Widget(parent), greeting_text(new Text("下午好", this)),
   subtitle_text(new Text("发现适合现在聆听的音乐", this)),
   recommend_header(new SectionHeader("为你推荐", "查看全部", this)) {
-
-  setPadding(Insets(34, 28, 36, 28));
-
   // 标题
-  greeting_text->setFontSize(30);
-  greeting_text->setColor(kHomeTitleColor);
-  greeting_text->setAlignment(Alignment::CenterLeft);
+  greeting_text->set_font_size(30);
+  greeting_text->set_color(kHomeTitleColor);
+  greeting_text->set_alignment(Alignment::CenterLeft);
 
   // 副标题
-  subtitle_text->setFontSize(13);
-  subtitle_text->setColor(kHomeSubtitleColor);
-  subtitle_text->setAlignment(Alignment::CenterLeft);
+  subtitle_text->set_font_size(13);
+  subtitle_text->set_color(kHomeSubtitleColor);
+  subtitle_text->set_alignment(Alignment::CenterLeft);
 
   recommendation_cards.push_back(new QuickCard("每日推荐", "根据收藏与最近播放生成", kIconRose, this));
   recommendation_cards.push_back(new QuickCard("沉浸工作", "轻节奏、低干扰的专注歌单", kIconBlue, this));
   recommendation_cards.push_back(new QuickCard("夜间电台", "柔和人声与电子氛围", kIconTeal, this));
   recommendation_cards.push_back(new QuickCard("新歌速递", "本周值得先听的更新", kIconOrange, this));
-
-  for (auto *card : recommendation_cards) {
-    card->clicked.connect([] {
-      yuri::info("hhhh");
-    });
-  }
 }
 
-void HomePage::layoutChildren() {
-  const float w = contentWidth();
-  const bool two_columns = w >= 560.0f;
-  const float column_gap = two_columns ? 16.0f : 0.0f;
-  const int columns = two_columns ? 2 : 1;
-  const float card_w = two_columns ? (w - column_gap) * 0.5f : w;
-  constexpr float card_h = 82.0f;
-  constexpr float row_gap = 14.0f;
+float HomeContent::requiredHeight(const float width) const {
+  const auto columns = columnCount(width);
+  const auto rows = (recommendation_cards.size() + columns - 1) / columns;
+  return kHomePadding.top + kGridTop + static_cast<float>(rows) * (kCardHeight + kRowGap) - kRowGap
+         + kHomePadding.bottom;
+}
 
-  greeting_text->setGeometry(0.0f, 0.0f, w, 42.0f);
-  subtitle_text->setGeometry(0.0f, 42.0f, w, 24.0f);
-  recommend_header->setGeometry(0.0f, 102.0f, w, 34.0f);
+void HomeContent::layout_children() {
+  const float w = std::max(0.0f, width() - kHomePadding.left - kHomePadding.right);
+  const auto columns = columnCount(width());
+  const float column_gap = columns == 2 ? 16.0f : 0.0f;
+  const float card_w = (w - column_gap) / static_cast<float>(columns);
 
-  const float grid_y = 148.0f;
+  greeting_text->set_geometry(kHomePadding.left, kHomePadding.top, w, 42.0f);
+  subtitle_text->set_geometry(kHomePadding.left, kHomePadding.top + 42.0f, w, 24.0f);
+  recommend_header->set_geometry(kHomePadding.left, kHomePadding.top + 102.0f, w, 34.0f);
+
   for (std::size_t i = 0; i < recommendation_cards.size(); ++i) {
-    const int col = static_cast<int>(i % columns);
-    const int row = static_cast<int>(i / columns);
-    const float x = static_cast<float>(col) * (card_w + column_gap);
-    const float y = grid_y + static_cast<float>(row) * (card_h + row_gap);
-    recommendation_cards[i]->setGeometry(x, y, card_w, card_h);
+    const float x = kHomePadding.left + static_cast<float>(i % columns) * (card_w + column_gap);
+    const float y =
+      kHomePadding.top + kGridTop + static_cast<float>(i / columns) * (kCardHeight + kRowGap);
+    recommendation_cards[i]->set_geometry(x, y, card_w, kCardHeight);
   }
 
-  Widget::layoutChildren();
+  Widget::layout_children();
 }
 
-void HomePage::paint(SkCanvas *canvas) {
+void HomeContent::paint(SkCanvas *canvas) {
   SkPaint panel;
   panel.setAntiAlias(true);
   panel.setColor(kHomePageFill);
-  canvas->drawRect(borderRect(), panel);
+  canvas->drawRect(local_bounds(), panel);
 
   SkPaint header_fill;
   header_fill.setAntiAlias(true);
@@ -130,6 +149,34 @@ void HomePage::paint(SkCanvas *canvas) {
   canvas->saveLayer(&glow_bounds, &glow_layer);
   canvas->drawOval(glow_rect, glow);
   canvas->restore();
+}
+
+} // namespace
+
+export namespace pages {
+
+/** 窄窗口或播放栏占用空间时，首页仍可滚动浏览全部推荐。 */
+class HomePage : public ScrollArea {
+public:
+  /**
+   * 创建首页和滚动内容。
+   * @param parent 父控件
+   */
+  explicit HomePage(Widget *parent = nullptr);
+
+  /** 根据视口与卡片网格的高度更新滚动范围。 */
+  void layout_children() override;
+
+private:
+  HomeContent *content_; // 首页内容容器
+};
+
+HomePage::HomePage(Widget *parent) : ScrollArea(parent), content_(new HomeContent(this)) {
+}
+
+void HomePage::layout_children() {
+  content_->set_preferred_height(std::max(height(), content_->requiredHeight(width())));
+  ScrollArea::layout_children();
 }
 
 } // namespace pages

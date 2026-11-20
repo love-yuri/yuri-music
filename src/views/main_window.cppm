@@ -4,7 +4,6 @@
 
 export module main_window;
 
-import page_view;
 import components;
 import pages;
 import yuri.core;
@@ -39,32 +38,6 @@ constexpr std::uint64_t kPlaybackPositionSyncIntervalUs = 100000;   // 播放位
  */
 void drawBlurredOval(SkCanvas *canvas, const SkRect &rect, SkColor color, float sigma);
 
-// 左侧整块背景面板
-class SidebarSurface : public Box {
-public:
-  using Box::Box;
-
-  /**
-   * 绘制侧栏背景。
-   *
-   * @param canvas 目标画布。
-   */
-  void paint(SkCanvas *canvas) override;
-};
-
-// 保留拖拽能力但不绘制分隔线的分栏
-class MusicSplitter : public Splitter {
-public:
-  using Splitter::Splitter;
-
-  /**
-   * 保留分栏拖拽区域且不绘制分隔线。
-   *
-   * @param canvas 目标画布。
-   */
-  void paint(SkCanvas *canvas) override;
-};
-
 void drawBlurredOval(
   SkCanvas *const canvas,
   const SkRect &rect,
@@ -85,25 +58,7 @@ void drawBlurredOval(
   canvas->restore();
 }
 
-void SidebarSurface::paint(SkCanvas *const canvas) {
-  SkPaint fill;
-  fill.setAntiAlias(true);
-  fill.setColor(kSidebarFill);
-  canvas->drawRect(borderRect(), fill);
-
-  SkPaint edge;
-  edge.setAntiAlias(true);
-  edge.setColor(ColorFromARGB(34, 255, 255, 255));
-  canvas->drawRect(SkRect::MakeXYWH(width_ - 1.0f, 0.0f, 1.0f, height_), edge);
-}
-
-void MusicSplitter::paint(SkCanvas *const) {
-  // 保留拖拽命中区域，视觉上不绘制桌面分隔线
-}
-
 export class MainWindow : public Window {
-  using Window::Window;
-
 public:
   /** 创建主窗口和页面结构。 */
   MainWindow();
@@ -115,8 +70,8 @@ public:
    */
   void render(SkCanvas *canvas) final;
 
-  /** 布局侧栏、页面和底部播放栏。 */
-  void layoutChildren() override;
+  /** 更新主内容区域与独立浮层的位置。 */
+  void layout_children() override;
 
 protected:
   /**
@@ -125,21 +80,27 @@ protected:
    * @param x 鼠标相对窗口的横坐标。
    * @param y 鼠标相对窗口的纵坐标。
    */
-  void onMouseLeftReleased(float x, float y) override;
+  void on_mouse_left_released(float x, float y) override;
 
 private:
-  /** 创建左侧菜单。 */
-  void setupSidebar();
-
-  /** 创建右侧页面。 */
-  void setupPages();
+  /** 创建侧栏和各个页面，并绑定导航按钮。 */
+  void setupNavigation();
 
   /**
-   * 处理菜单点击并切换页面。
+   * 注册页面并创建与其关联的侧栏按钮。
    *
-   * @param id 目标菜单标识。
+   * @param id 页面标识。
+   * @param label 按钮文字。
+   * @param icon SVG 图标路径。
+   * @param page 页面控件。
    */
-  void onMenuClicked(const std::string &id);
+  void addPage(std::string_view id, std::string_view label, std::string_view icon, Widget &page);
+
+  /**
+   * 更新侧栏按钮选中状态。
+   * @param id 当前页面标识。
+   */
+  void onPageChanged(std::string_view id);
 
   /**
    * 处理歌曲选中并显示播放栏。
@@ -214,10 +175,8 @@ private:
   /** 定期同步底层播放器位置。 */
   void syncPlaybackPosition();
 
-  Splitter *splitter_ = nullptr;                                         // 主分栏
-  Box *sidebar_ = nullptr;                                               // 左侧菜单面板
-  components::UserProfileCard *profile_card = nullptr;                   // 侧栏个人资料
-  PageView *page_view = nullptr;                                         // 页面容器
+  Widget *main_area = nullptr;                                           // 主内容与播放栏的布局容器
+  NavigationView *navigation_ = nullptr;                                 // 侧栏和页面容器
   components::PlayerBar *player_bar = nullptr;                           // 底部播放栏
   components::VolumeSliderPopup *volume_popup = nullptr;                 // 竖向音量浮层
   ContextMenu *song_context_menu = nullptr;                              // 歌曲上下文菜单
@@ -226,9 +185,8 @@ private:
   double playback_duration_seconds = 0.0;                                // 当前歌曲总时长
   bass24::PlaybackState playback_state = bass24::PlaybackState::stopped; // 当前播放状态
 
-  std::unordered_map<std::string, MenuButton *> menu_buttons{}; // 菜单按钮集合
+  std::unordered_map<std::string_view, components::MenuButton *> menu_buttons{}; // 导航按钮集合
 
-  static constexpr float kPlayerBarHeight = 86.0f;                     // 播放器底栏高度
   static constexpr float kVolumePopupOverlap = 14.0f;                  // 音量浮层重叠距离
   static constexpr auto kHomeSvg = "resources/svg/home.svg";           // 首页图标路径
   static constexpr auto kBrowseSvg = "resources/svg/browse.svg";       // 浏览图标路径
@@ -240,19 +198,15 @@ private:
 };
 
 MainWindow::MainWindow() : Window(1024, 700) {
-  splitter_ = new MusicSplitter(this);
-  splitter_->setMinLeftWidth(174.f);
-  splitter_->setMaxLeftWidth(286.f);
+  main_area = new Widget(this);
+  main_area->set_layout(new VBoxLayout());
+  navigation_ = new NavigationView(main_area);
+  navigation_->set_min_left_width(174.0f);
+  navigation_->set_max_left_width(286.0f);
+  navigation_->set_handle_visible(false);
 
-  sidebar_ = new SidebarSurface(splitter_);
-  sidebar_->setPadding(Insets(22, 22, 22, 18));
-  sidebar_->setLayout<VBoxLayout<Widget>>();
-  sidebar_->layout()->setSpacing(8);
-
-  page_view = new PageView(splitter_);
-
-  player_bar = new components::PlayerBar(this);
-  player_bar->setVisible(false);
+  player_bar = new components::PlayerBar(main_area);
+  player_bar->set_visible(false);
   player_bar->previousClicked.connect<&MainWindow::onPreviousClicked>(this);
   player_bar->playPauseClicked.connect<&MainWindow::onPlayPauseClicked>(this);
   player_bar->nextClicked.connect<&MainWindow::onNextClicked>(this);
@@ -261,56 +215,43 @@ MainWindow::MainWindow() : Window(1024, 700) {
   player_bar->volumeButtonClicked.connect<&MainWindow::onVolumeButtonClicked>(this);
 
   volume_popup = new components::VolumeSliderPopup(this);
-  volume_popup->setVisible(false);
+  volume_popup->set_visible(false);
   volume_popup->volume_changed.connect<&MainWindow::onVolumeChanged>(this);
   playback::controller.currentSongChanged.connect<&MainWindow::onCurrentSongChanged>(this);
   playback::controller.playbackStateChanged.connect<&MainWindow::onPlaybackStateChanged>(this);
   playback::controller.playbackDurationChanged.connect<&MainWindow::onPlaybackDurationChanged>(this);
   playback::controller.volumeChanged.connect<&MainWindow::onPlayerVolumeChanged>(this);
 
-  setupSidebar();
-  setupPages();
+  setupNavigation();
   song_context_menu = new ContextMenu({
     ContextMenuItem("下一首播放"),
     ContextMenuItem("评论") },
     this
   );
 
-  song_context_menu->itemClicked.connect<&MainWindow::onSongContextMenuItemClicked>(this);
-  page_view->showPage("home");
-  menu_buttons["home"]->setActive(true);
-  markLayoutDirty();
+  song_context_menu->item_clicked.connect<&MainWindow::onSongContextMenuItemClicked>(this);
+  navigation_->pages().show_page("home");
 
   // 注入组件
   injector.addSingleton(player_bar);
 }
 
-void MainWindow::layoutChildren() {
-  const float w = contentWidth();
-  const float h = contentHeight();
-  const float bar_h = player_bar->showing() ? kPlayerBarHeight : 0.0f;
-  const float main_h = h - bar_h;
+void MainWindow::layout_children() {
+  main_area->set_geometry(local_bounds());
+  Widget::layout_children();
 
-  splitter_->setGeometry(0, 0, w, main_h);
-  splitter_->updateLayout();
-
-  if (player_bar->showing()) {
-    player_bar->setGeometry(0, main_h, w, bar_h);
-    player_bar->updateLayout();
-
-    if (volume_popup->visible()) {
-      constexpr float kPopupWidth = components::VolumeSliderPopup::kPreferredWidth;
-      constexpr float kPopupHeight = components::VolumeSliderPopup::kPreferredHeight;
-      const float popup_x = std::round(player_bar->volumeButtonCenterX() - kPopupWidth * 0.5f);
-      const float popup_y = std::round(main_h - kPopupHeight + kVolumePopupOverlap);
-      volume_popup->setGeometry(popup_x, popup_y, kPopupWidth, kPopupHeight);
-      volume_popup->updateLayout();
-    }
+  if (player_bar->showing() && volume_popup->visible()) {
+    constexpr float kPopupWidth = components::VolumeSliderPopup::kPreferredWidth;
+    constexpr float kPopupHeight = components::VolumeSliderPopup::kPreferredHeight;
+    const float popup_x = std::round(player_bar->volumeButtonCenterX() - kPopupWidth * 0.5f);
+    const float popup_y = std::round(player_bar->y() - kPopupHeight + kVolumePopupOverlap);
+    volume_popup->set_geometry(popup_x, popup_y, kPopupWidth, kPopupHeight);
+    volume_popup->update_layout();
   }
 }
 
-void MainWindow::onMouseLeftReleased(const float x, const float y) {
-  if (volume_popup == nullptr || player_bar == nullptr || !volume_popup->visible()) {
+void MainWindow::on_mouse_left_released(const float x, const float y) {
+  if (!volume_popup->visible()) {
     return;
   }
 
@@ -321,55 +262,44 @@ void MainWindow::onMouseLeftReleased(const float x, const float y) {
     return;
   }
 
-  volume_popup->setVisible(false);
+  volume_popup->set_visible(false);
   player_bar->setVolumePopupVisible(false);
-  markLayoutDirty();
+  mark_layout_dirty();
 }
 
-void MainWindow::setupSidebar() {
-  profile_card = new components::UserProfileCard(true, sidebar_);
+void MainWindow::setupNavigation() {
+  auto &sidebar = navigation_->sidebar();
+  sidebar.set_background(kSidebarFill);
+  sidebar.set_padding(Insets(22, 22, 22, 18));
+  auto *const layout = new VBoxLayout(VerticalAlignment::Top);
+  layout->set_spacing(8.0f);
+  auto &navigation = navigation_->navigation();
+  navigation.set_layout(layout);
+  new components::UserProfileCard(true, &navigation);
 
-  struct MenuItem {
-    std::string id;        // 菜单标识
-    std::string label;     // 菜单文本
-    std::string_view icon; // 图标路径
-  };
+  auto *const pages = &navigation_->pages();
+  pages->page_changed.connect<&MainWindow::onPageChanged>(this);
+  addPage("home", "首页", kHomeSvg, *new pages::HomePage(pages));
+  addPage("browse", "浏览", kBrowseSvg, *new pages::BrowsePage(pages));
+  addPage("search", "搜索", kSearchSvg, *new pages::SearchPage(pages));
+  addPage("library", "音乐库", kLibrarySvg, *new pages::LibraryPage(pages));
 
-  const std::vector<MenuItem> items = {
-    { "home", "首页", kHomeSvg },
-    { "browse", "浏览", kBrowseSvg },
-    { "search", "搜索", kSearchSvg },
-    { "library", "音乐库", kLibrarySvg },
-    { "favorites", "我喜欢", kFavoritesSvg },
-    { "recent", "最近播放", kRecentSvg },
-    { "settings", "设置", kSettingsSvg },
-  };
-
-  for (const auto &[id, label, icon] : items) {
-    auto *const button = new MenuButton(label, icon, sidebar_);
-    button->setId(id);
-    button->clicked.connect<&MainWindow::onMenuClicked>(this);
-    button->setMaxHeight(50);
-    menu_buttons[id] = button;
-  }
-}
-
-void MainWindow::setupPages() {
-  if (page_view == nullptr) {
-    return;
-  }
-
-  page_view->addPage("home", new pages::HomePage(page_view));
-  page_view->addPage("browse", new pages::BrowsePage(page_view));
-  page_view->addPage("search", new pages::SearchPage(page_view));
-
-  page_view->addPage("library", new pages::LibraryPage(page_view));
-
-  auto *const favorites_page = new pages::FavoritesPage(page_view);
+  auto *const favorites_page = new pages::FavoritesPage(pages);
   favorites_page->songContextMenuRequested.connect<&MainWindow::onSongContextMenuRequested>(this);
-  page_view->addPage("favorites", favorites_page);
-  page_view->addPage("recent", new pages::RecentPage(page_view));
-  page_view->addPage("settings", new pages::SettingsPage(page_view));
+  addPage("favorites", "我喜欢", kFavoritesSvg, *favorites_page);
+  addPage("recent", "最近播放", kRecentSvg, *new pages::RecentPage(pages));
+  addPage("settings", "设置", kSettingsSvg, *new pages::SettingsPage(pages));
+}
+
+void MainWindow::addPage(
+  const std::string_view id,
+  const std::string_view label,
+  const std::string_view icon,
+  Widget &page
+) {
+  auto *const button = new components::MenuButton(label, icon, &navigation_->navigation());
+  navigation_->add_page(id, page, *button);
+  menu_buttons.emplace(id, button);
 }
 
 void MainWindow::onCurrentSongChanged(const SongInfo &info) const {
@@ -381,7 +311,7 @@ void MainWindow::onCurrentSongChanged(const SongInfo &info) const {
 
 void MainWindow::onSongContextMenuRequested(const SongInfo &info) {
   context_menu_song = info;
-  song_context_menu->popupAtCursor();
+  song_context_menu->popup_at_cursor();
 }
 
 void MainWindow::onSongContextMenuItemClicked(const std::size_t index) {
@@ -455,9 +385,9 @@ void MainWindow::onPlaybackModeChanged(const bool random) const {
 
 void MainWindow::onVolumeButtonClicked() {
   const bool visible = !volume_popup->visible();
-  volume_popup->setVisible(visible);
+  volume_popup->set_visible(visible);
   player_bar->setVolumePopupVisible(visible);
-  markLayoutDirty();
+  mark_layout_dirty();
 }
 
 // ReSharper disable once CppMemberFunctionMayBeStatic
@@ -489,9 +419,7 @@ void MainWindow::syncPlaybackPosition() {
   player_bar->setPlaybackPosition(playback::controller.positionSeconds());
 }
 
-void MainWindow::onMenuClicked(const std::string &id) {
-  page_view->showPage(id);
-
+void MainWindow::onPageChanged(const std::string_view id) {
   for (const auto &[menu_id, button] : menu_buttons) {
     button->setActive(menu_id == id);
   }
@@ -502,8 +430,8 @@ void MainWindow::render(SkCanvas *const canvas) {
 
   canvas->clear(kWindowBg);
 
-  const float w = contentWidth();
-  const float h = contentHeight();
+  const float w = width();
+  const float h = height();
 
   SkPaint base;
   base.setAntiAlias(true);

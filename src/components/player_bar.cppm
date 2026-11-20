@@ -44,6 +44,7 @@ static constexpr float kPlayBtnR = 14.0f;
 static constexpr float kPlayBtnBgR = kPlayBtnR + 10.0f;
 static constexpr float kSideBtnR = 13.0f;
 static constexpr float kCtrlGap = 26.0f;
+static constexpr float kControlIslandPad = 28.0f; // 控制区两端留白
 static constexpr float kControlIslandH = 42.0f;
 static constexpr float kControlBlockOffsetY = 3.0f;
 static constexpr float kVolTrackH = 4.0f;
@@ -165,16 +166,16 @@ public:
 
 protected:
   /** 处理鼠标移动。 */
-  void onMouseMove(float x, float y) override;
+  void on_mouse_move(float x, float y) override;
 
   /** 处理鼠标左键按下。 */
-  void onMouseLeftPressed(float x, float y) override;
+  void on_mouse_left_pressed(float x, float y) override;
 
   /** 处理鼠标左键释放。 */
-  void onMouseLeftReleased(float x, float y) override;
+  void on_mouse_left_released(float x, float y) override;
 
   /** 处理鼠标滚轮调节。 */
-  void onMouseWheel(float delta_x, float delta_y) override;
+  void on_mouse_wheel(float delta_x, float delta_y) override;
 
 private:
   /**
@@ -221,7 +222,7 @@ public:
   Signal<double> seekRequested;     // 进度跳转请求信号
 
   /** 布局子控件。 */
-  void layoutChildren() override;
+  void layout_children() override;
 
   /** 绘制播放器底栏。 */
   void paint(SkCanvas *canvas) override;
@@ -304,16 +305,16 @@ public:
 
 protected:
   /** 鼠标移动事件。 */
-  void onMouseMove(float x, float y) override;
+  void on_mouse_move(float x, float y) override;
 
   /** 鼠标离开事件。 */
-  void onMouseLeave(float x, float y) override;
+  void on_mouse_leave(float x, float y) override;
 
   /** 鼠标左键按下事件。 */
-  void onMouseLeftPressed(float x, float y) override;
+  void on_mouse_left_pressed(float x, float y) override;
 
   /** 鼠标左键释放事件。 */
-  void onMouseLeftReleased(float x, float y) override;
+  void on_mouse_left_released(float x, float y) override;
 
 private:
   /**
@@ -409,6 +410,7 @@ private:
   float progress_w = kProgressMaxW; // 进度条宽度
 
   int hovered_btn = 0;               // 当前悬浮按钮
+  int pressed_btn = 0;               // 本次左键按下的按钮
   bool showing_ = false;             // 是否显示
   bool playing_ = false;             // 是否正在播放
   bool loading_ = false;             // 是否正在加载当前歌曲
@@ -424,10 +426,7 @@ private:
 };
 
 VolumeSliderPopup::VolumeSliderPopup(Widget *parent) : Widget(parent) {
-  setMinWidth(kPreferredWidth);
-  setMaxWidth(kPreferredWidth);
-  setMinHeight(kPreferredHeight);
-  setMaxHeight(kPreferredHeight);
+  set_fixed_size(kPreferredWidth, kPreferredHeight);
 }
 
 void VolumeSliderPopup::paint(SkCanvas *canvas) {
@@ -511,7 +510,7 @@ void VolumeSliderPopup::setVolume(const float value) noexcept {
     return;
   }
   volume_ = value;
-  markLayoutDirty();
+  mark_layout_dirty();
 }
 
 bool VolumeSliderPopup::hitTestSlider(const float x, const float y) const {
@@ -523,113 +522,110 @@ void VolumeSliderPopup::updateVolumeFromPoint(const float y) {
   constexpr float kTrackBottom = 104.0f;
   volume_ = std::clamp((kTrackBottom - y) / (kTrackBottom - kTrackTop), 0.0f, 1.0f);
   volume_changed.emit(volume_);
-  markLayoutDirty();
+  mark_layout_dirty();
 }
 
-void VolumeSliderPopup::onMouseMove(float, const float y) {
+void VolumeSliderPopup::on_mouse_move(float, const float y) {
   if (dragging_) {
     updateVolumeFromPoint(y);
   }
 }
 
-void VolumeSliderPopup::onMouseLeftPressed(const float x, const float y) {
+void VolumeSliderPopup::on_mouse_left_pressed(const float x, const float y) {
   if (!hitTestSlider(x, y)) {
     return;
   }
   dragging_ = true;
-  is_dragging = true;
   updateVolumeFromPoint(y);
 }
 
-void VolumeSliderPopup::onMouseLeftReleased(float, const float y) {
+void VolumeSliderPopup::on_mouse_left_released(float, const float y) {
   if (!dragging_) {
     return;
   }
   updateVolumeFromPoint(y);
   dragging_ = false;
-  is_dragging = false;
 }
 
-void VolumeSliderPopup::onMouseWheel(float, const float delta_y) {
+void VolumeSliderPopup::on_mouse_wheel(float, const float delta_y) {
   if (std::abs(delta_y) <= 0.001f) {
     return;
   }
   const float direction = delta_y > 0.0f ? 1.0f : -1.0f;
   volume_ = std::clamp(volume_ + direction * 0.05f, 0.0f, 1.0f);
   volume_changed.emit(volume_);
-  markLayoutDirty();
+  mark_layout_dirty();
 }
 
 PlayerBar::PlayerBar(Widget *parent) : Widget(parent), cover_svg("resources/svg/play.svg") {
-  bg_.setColor(kBarBg);
+  bg_.set_color(kBarBg);
 
-  cover_bg.setColor(kPlayerCoverColor);
+  cover_bg.set_color(kPlayerCoverColor);
   cover_bg.radius = &cover_radius;
-  cover_svg.setAlignment(Alignment::Center);
+  cover_svg.set_alignment(Alignment::Center);
 
-  title_text.setFont(font::bold_font);
-  title_text.setFontSize(14.5f);
-  title_text.setColor(kTextPrimary);
-  title_text.setAlignment(Alignment::BottomLeft);
+  title_text.set_font(font::bold_font);
+  title_text.set_font_size(14.5f);
+  title_text.set_color(kTextPrimary);
+  title_text.set_alignment(Alignment::BottomLeft);
 
-  artist_text.setFontSize(12.5f);
-  artist_text.setColor(kTextSecondary);
-  artist_text.setAlignment(Alignment::TopLeft);
+  artist_text.set_font_size(12.5f);
+  artist_text.set_color(kTextSecondary);
+  artist_text.set_alignment(Alignment::TopLeft);
 
-  time_left.setFontSize(11.5f);
-  time_left.setColor(kTextMuted);
-  time_left.setAlignment(Alignment::CenterRight);
-  time_left.setText("0:00");
+  time_left.set_font_size(11.5f);
+  time_left.set_color(kTextMuted);
+  time_left.set_alignment(Alignment::CenterRight);
+  time_left.set_text("0:00");
 
-  time_right.setFontSize(11.5f);
-  time_right.setColor(kTextMuted);
-  time_right.setAlignment(Alignment::CenterLeft);
+  time_right.set_font_size(11.5f);
+  time_right.set_color(kTextMuted);
+  time_right.set_alignment(Alignment::CenterLeft);
 
-  setMaxHeight(kBarHeight);
-  setMinHeight(kBarHeight);
+  set_fixed_height(kBarHeight);
 }
 
 void PlayerBar::show() {
   if (showing_) return;
   showing_ = true;
-  setVisible(true);
-  markLayoutDirty();
-  startAnimation(slide_t, 1.0f, 350.0f, &slide_t, CubicBezier::EaseOut());
-  startAnimation(alpha_, 1.0f, 350.0f, &alpha_, CubicBezier::EaseOut());
+  set_visible(true);
+  mark_layout_dirty();
+  start_animation(slide_t, 1.0f, 350.0f, &slide_t, CubicBezier::EaseOut());
+  start_animation(alpha_, 1.0f, 350.0f, &alpha_, CubicBezier::EaseOut());
 }
 
 void PlayerBar::hide() {
   if (!showing_) return;
   showing_ = false;
-  setVisible(false);
-  markLayoutDirty();
+  set_visible(false);
+  mark_layout_dirty();
 }
 
 void PlayerBar::updateSong(const SongInfo &info) {
   text_alpha = 0.0f;
-  title_text.setText(info.title);
-  artist_text.setText(info.artist);
-  time_right.setText(info.duration);
-  time_left.setText("0:00");
+  title_text.set_text(info.title);
+  artist_text.set_text(info.artist);
+  time_right.set_text(info.duration);
+  time_left.set_text("0:00");
   progress_ = 0.0f;
   duration_display_second = parseTimeText(info.duration);
   duration_seconds = static_cast<double>(std::max(0, duration_display_second));
   elapsed_display_seconds = 0;
   loadCoverImage(info.album_mid);
-  startAnimation(text_alpha, 1.0f, 250.0f, &text_alpha, CubicBezier::EaseOut());
-  markLayoutDirty();
+  start_animation(text_alpha, 1.0f, 250.0f, &text_alpha, CubicBezier::EaseOut());
+  mark_layout_dirty();
 }
 
 void PlayerBar::setPlaying(const bool value) noexcept {
   if (playing_ == value) return;
   playing_ = value;
-  markLayoutDirty();
+  mark_layout_dirty();
 }
 
 void PlayerBar::setLoading(const bool value) noexcept {
   if (loading_ == value) return;
   loading_ = value;
-  markLayoutDirty();
+  mark_layout_dirty();
 }
 
 void PlayerBar::setPlaybackDuration(const double value_seconds) {
@@ -639,12 +635,12 @@ void PlayerBar::setPlaybackDuration(const double value_seconds) {
 
   if (duration_display_second != next_display_second) {
     duration_display_second = next_display_second;
-    time_right.setText(formatTime(duration_display_second));
+    time_right.set_text(formatTime(duration_display_second));
     changed = true;
   }
 
   if (changed) {
-    markLayoutDirty();
+    mark_layout_dirty();
   }
 }
 
@@ -662,19 +658,19 @@ void PlayerBar::setPlaybackPosition(const double position_seconds) {
     elapsed_seconds != elapsed_display_seconds
   ) {
     elapsed_display_seconds = elapsed_seconds;
-    time_left.setText(formatTime(elapsed_seconds));
+    time_left.set_text(formatTime(elapsed_seconds));
     changed = true;
   }
 
   if (changed) {
-    markLayoutDirty();
+    mark_layout_dirty();
   }
 }
 
 void PlayerBar::setVolume(const float value) noexcept {
   if (std::abs(volume_ - value) <= 0.001f) return;
   volume_ = value;
-  markLayoutDirty();
+  mark_layout_dirty();
 }
 
 void PlayerBar::setVolumePopupVisible(const bool value) noexcept {
@@ -682,7 +678,7 @@ void PlayerBar::setVolumePopupVisible(const bool value) noexcept {
     return;
   }
   volume_popup_visible = value;
-  markLayoutDirty();
+  mark_layout_dirty();
 }
 
 bool PlayerBar::volumeButtonContains(const float x, const float y) const noexcept {
@@ -705,34 +701,24 @@ void PlayerBar::loadCoverImage(const std::string_view album_mid) {
   });
 }
 
-void PlayerBar::layoutChildren() {
-  const float w = contentWidth();
-  const float h = contentHeight();
+void PlayerBar::layout_children() {
+  const float w = width();
+  const float h = height();
 
-  bg_.update(borderRect());
+  bg_.update(local_bounds());
 
   // ─── 左列：封面 + 文字 ───
   const float cover_y = std::round((h - kCoverSize) * 0.5f);
   cover_bg.update(SkRect::MakeXYWH(kPadH, cover_y, kCoverSize, kCoverSize));
   cover_svg.update(SkRect::MakeXYWH(kPadH, cover_y, kCoverSize, kCoverSize));
 
-  constexpr float kTextGapX = 14.0f;
-  constexpr float kTitleHeight = 19.0f;
-  constexpr float kArtistHeight = 17.0f;
-  constexpr float kTextGapY = 5.0f;
-  constexpr float kTextBlockHeight = kTitleHeight + kTextGapY + kArtistHeight;
-  constexpr float kTextX = kPadH + kCoverSize + kTextGapX;
-  constexpr float kTextWidth = kLeftW - kPadH - kCoverSize - kTextGapX;
-  const float text_y = std::round((h - kTextBlockHeight) * 0.5f);
-  title_text.update(SkRect::MakeXYWH(kTextX, text_y, kTextWidth, kTitleHeight));
-  artist_text.update(
-    SkRect::MakeXYWH(kTextX, text_y + kTitleHeight + kTextGapY, kTextWidth, kArtistHeight)
-  );
-
   // ─── 中列：控制按钮行 + 进度条行 ───
-  constexpr float kCenterX = kLeftW;
+  constexpr float kTransportGap = kPlayBtnR + kSideBtnR + kCtrlGap;
+  constexpr float kAuxGap = 47.0f;
+  constexpr float kControlHalfWidth = kTransportGap + kAuxGap + kControlIslandPad;
   const float center_w = std::max(0.0f, w - kLeftW - kRightW);
-  const float ctrl_cx = std::round(kCenterX + center_w * 0.5f);
+  const float center_limit = std::max(w * 0.5f, w - kControlHalfWidth - kPadH);
+  const float ctrl_cx = std::round(std::min(kLeftW + center_w * 0.5f, center_limit));
 
   // 按钮行（上半部分）
   constexpr float kButtonRowHeight = kPlayBtnBgR * 2.0f;
@@ -741,12 +727,26 @@ void PlayerBar::layoutChildren() {
   const float block_y = std::round((h - kTotalHeight) * 0.5f + kControlBlockOffsetY);
 
   btn_cy = std::round(block_y + kButtonRowHeight * 0.5f);
-  btn_prev_cx = std::round(ctrl_cx - (kPlayBtnR + kSideBtnR + kCtrlGap));
+  btn_prev_cx = std::round(ctrl_cx - kTransportGap);
   btn_play_cx = ctrl_cx;
-  btn_next_cx = std::round(ctrl_cx + (kPlayBtnR + kSideBtnR + kCtrlGap));
-  constexpr float kAuxGap = 47.0f;
+  btn_next_cx = std::round(ctrl_cx + kTransportGap);
   btn_mode_cx = std::round(btn_prev_cx - kAuxGap);
   btn_volume_cx = std::round(btn_next_cx + kAuxGap);
+
+  // 曲名宽度随控制区变化，窗口缩窄时由文字节点自动省略。
+  constexpr float kTextGapX = 14.0f;
+  constexpr float kTitleHeight = 19.0f;
+  constexpr float kArtistHeight = 17.0f;
+  constexpr float kTextGapY = 5.0f;
+  constexpr float kTextBlockHeight = kTitleHeight + kTextGapY + kArtistHeight;
+  constexpr float kTextX = kPadH + kCoverSize + kTextGapX;
+  const float text_end = std::min(kLeftW, btn_mode_cx - kControlIslandPad - kTextGapX);
+  const float text_w = std::max(0.0f, text_end - kTextX);
+  const float text_y = std::round((h - kTextBlockHeight) * 0.5f);
+  title_text.update(SkRect::MakeXYWH(kTextX, text_y, text_w, kTitleHeight));
+  artist_text.update(
+    SkRect::MakeXYWH(kTextX, text_y + kTitleHeight + kTextGapY, text_w, kArtistHeight)
+  );
 
   // 进度条行（下半部分）
   progress_cx = ctrl_cx;
@@ -778,7 +778,6 @@ void PlayerBar::render(SkCanvas *canvas) {
 
   paint(canvas);
 
-  canvas->translate(padding_.left, padding_.top);
   for (const auto child : children_) {
     if (child->visible()) child->render(canvas);
   }
@@ -866,8 +865,8 @@ void PlayerBar::paint(SkCanvas *canvas) {
       );
       canvas->restore();
     } else {
-      cover_bg.render(canvas);
-      cover_svg.render(canvas);
+      cover_bg.draw(canvas);
+      cover_svg.draw(canvas);
     }
 
     // 高光层
@@ -889,16 +888,16 @@ void PlayerBar::paint(SkCanvas *canvas) {
     if (text_alpha < 0.999f) {
       canvas->saveLayerAlphaf(nullptr, text_alpha);
     }
-    title_text.render(canvas);
-    artist_text.render(canvas);
+    title_text.draw(canvas);
+    artist_text.draw(canvas);
     if (text_alpha < 0.999f) {
       canvas->restore();
     }
   }
 
   // ─── 时长 ───
-  time_left.render(canvas);
-  time_right.render(canvas);
+  time_left.draw(canvas);
+  time_right.draw(canvas);
 
   // ─── 控制按钮 ───
   drawControlIsland(canvas);
@@ -1004,9 +1003,9 @@ void PlayerBar::paint(SkCanvas *canvas) {
 
 void PlayerBar::drawControlIsland(SkCanvas *c) const {
   const auto island = SkRect::MakeXYWH(
-    btn_mode_cx - 28.0f,
+    btn_mode_cx - kControlIslandPad,
     btn_cy - kControlIslandH * 0.5f,
-    btn_volume_cx - btn_mode_cx + 56.0f,
+    btn_volume_cx - btn_mode_cx + 2.0f * kControlIslandPad,
     kControlIslandH
   );
   constexpr float island_r = kControlIslandH * 0.5f;
@@ -1131,75 +1130,76 @@ void PlayerBar::requestSeekFromPoint(const float x) {
   const double ratio = progressRatioFromPoint(x);
   progress_ = static_cast<float>(ratio);
   if (duration_seconds > 0.001) {
-    time_left.setText(formatTime(duration_seconds * ratio));
+    time_left.set_text(formatTime(duration_seconds * ratio));
   }
   seekRequested.emit(ratio);
-  markLayoutDirty();
+  mark_layout_dirty();
 }
 
-void PlayerBar::onMouseMove(float x, float y) {
+void PlayerBar::on_mouse_move(const float x, const float y) {
   if (progress_dragging) {
     pending_seek_ratio = progressRatioFromPoint(x);
     return;
   }
 
-  const int btn = hitTestButton(x, y);
+  const int btn = hovered_ ? hitTestButton(x, y) : 0;
   if (btn != hovered_btn) {
     hovered_btn = btn;
-    startAnimation(
+    start_animation(
       btn_hover_t,
       (btn != 0 && btn != 3) ? 1.0f : 0.0f,
       120.0f,
       &btn_hover_t,
       CubicBezier::EaseOut()
     );
-    startAnimation(
+    start_animation(
       play_hover_t, btn == 3 ? 1.0f : 0.0f, 120.0f, &play_hover_t, CubicBezier::EaseOut()
     );
   }
 }
 
-void PlayerBar::onMouseLeave(float, float) {
+void PlayerBar::on_mouse_leave(float, float) {
   hovered_btn = 0;
-  startAnimation(btn_hover_t, 0.0f, 180.0f, &btn_hover_t, CubicBezier::EaseOut());
-  startAnimation(play_hover_t, 0.0f, 180.0f, &play_hover_t, CubicBezier::EaseOut());
+  start_animation(btn_hover_t, 0.0f, 180.0f, &btn_hover_t, CubicBezier::EaseOut());
+  start_animation(play_hover_t, 0.0f, 180.0f, &play_hover_t, CubicBezier::EaseOut());
 }
 
-void PlayerBar::onMouseLeftPressed(float x, float y) {
+void PlayerBar::on_mouse_left_pressed(const float x, const float y) {
   if (hitTestProgress(x, y)) {
     progress_dragging = true;
-    is_dragging = true;
     pending_seek_ratio = progressRatioFromPoint(x);
     return;
   }
-  if (hovered_btn != 0 && hovered_btn != 3) {
-    startAnimation(btn_press_t, 1.0f, 60.0f, &btn_press_t, CubicBezier::EaseOut());
-  } else if (hovered_btn == 3) {
-    startAnimation(play_press_t, 1.0f, 60.0f, &play_press_t, CubicBezier::EaseOut());
+  pressed_btn = hitTestButton(x, y);
+  if (pressed_btn != 0 && pressed_btn != 3) {
+    start_animation(btn_press_t, 1.0f, 60.0f, &btn_press_t, CubicBezier::EaseOut());
+  } else if (pressed_btn == 3) {
+    start_animation(play_press_t, 1.0f, 60.0f, &play_press_t, CubicBezier::EaseOut());
   }
 }
 
-void PlayerBar::onMouseLeftReleased(float x, float) {
-  const int released_btn = hovered_btn;
-
+void PlayerBar::on_mouse_left_released(const float x, const float y) {
   if (progress_dragging) {
     requestSeekFromPoint(x);
     progress_dragging = false;
-    is_dragging = false;
     return;
   }
 
-  if (btn_press_t > 0.0f) {
-    startAnimation(btn_press_t, 0.0f, 180.0f, &btn_press_t, CubicBezier::EaseOut());
+  const int pressed = std::exchange(pressed_btn, 0);
+  if (pressed == 0) return;
+
+  if (pressed != 3) {
+    start_animation(btn_press_t, 0.0f, 180.0f, &btn_press_t, CubicBezier::EaseOut());
+  } else {
+    start_animation(play_press_t, 0.0f, 180.0f, &play_press_t, CubicBezier::EaseOut());
   }
-  if (play_press_t > 0.0f) {
-    startAnimation(play_press_t, 0.0f, 180.0f, &play_press_t, CubicBezier::EaseOut());
-  }
+  const int released_btn = hitTestButton(x, y);
+  if (!visible() || !hovered_ || released_btn != pressed) return;
 
   if (released_btn == 1) {
     random_playback = !random_playback;
     playbackModeChanged.emit(random_playback);
-    markLayoutDirty();
+    mark_layout_dirty();
   } else if (released_btn == 2) {
     previousClicked.emit();
   } else if (released_btn == 3 && !loading_) {

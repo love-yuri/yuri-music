@@ -66,7 +66,7 @@ public:
   /**
    * 布局child
    */
-  void layoutChildren() override;
+  void layout_children() override;
 
   /**
    * 绘制自身
@@ -91,22 +91,22 @@ public:
 
 protected:
   /** 鼠标悬浮进入 */
-  void onMouseEnter(float x, float y) override;
+  void on_mouse_enter(float x, float y) override;
 
   /** 鼠标悬浮离开 */
-  void onMouseLeave(float x, float y) override;
+  void on_mouse_leave(float x, float y) override;
 
   /** 鼠标移动 */
-  void onMouseMove(float x, float y) override;
+  void on_mouse_move(float x, float y) override;
 
   /** 鼠标按下 */
-  void onMouseLeftPressed(float x, float y) override;
+  void on_mouse_left_pressed(float x, float y) override;
 
   /** 鼠标松开 */
-  void onMouseLeftReleased(float x, float y) override;
+  void on_mouse_left_released(float x, float y) override;
 
   /** 鼠标右键按下 */
-  void onMouseRightPressed(float x, float y) override;
+  void on_mouse_right_pressed(float x, float y) override;
 
 private:
   /** 根据各动画通道合成最终背景色 */
@@ -147,8 +147,8 @@ private:
   // --- 交互状态 ---
   bool is_playing = false; // 是否播放中
 
-  bool is_hovering = false;          // 是否悬浮中
-  bool is_pressed = false;           // 是否正在被按下
+  bool pressed_heart = false;        // 本次左键是否在收藏按钮上按下
+  bool pressed_more = false;         // 本次左键是否在更多按钮上按下
   bool selected_ = false;            // 是否被选中
   std::uint64_t last_click_time = 0; // 上次点击时间
 
@@ -172,43 +172,42 @@ SongItem::SongItem(const int index, const SongInfo &info, const bool is_playing,
   cover_color = palette[static_cast<std::size_t>(index) % std::size(palette)];
 
   // 序号
-  index_text.setFontSize(12.5f);
-  index_text.setColor(is_playing ? kPlayingAccentColor : kMutedColor);
-  index_text.setAlignment(Alignment::CenterRight);
+  index_text.set_font_size(12.5f);
+  index_text.set_color(is_playing ? kPlayingAccentColor : kMutedColor);
+  index_text.set_alignment(Alignment::CenterRight);
 
   // 封面色块
-  cover_bg.setColor(cover_color);
+  cover_bg.set_color(cover_color);
   cover_bg.radius = &cover_radius;
 
   // 封面播放图标
-  cover_svg.setAlignment(Alignment::Center);
+  cover_svg.set_alignment(Alignment::Center);
 
   // 标题
-  title_text.setFontSize(14);
-  title_text.setColor(is_playing ? kPlayingAccentColor : kSongTitleColor);
-  title_text.setAlignment(Alignment::TopLeft);
+  title_text.set_font_size(14);
+  title_text.set_color(is_playing ? kPlayingAccentColor : kSongTitleColor);
+  title_text.set_alignment(Alignment::TopLeft);
 
   // 歌手
-  artist_text.setFontSize(12.5f);
-  artist_text.setColor(kArtistColor);
-  artist_text.setAlignment(Alignment::TopLeft);
+  artist_text.set_font_size(12.5f);
+  artist_text.set_color(kArtistColor);
+  artist_text.set_alignment(Alignment::TopLeft);
 
   // 专辑
-  album_text.setFontSize(12.5f);
-  album_text.setColor(kMutedColor);
-  album_text.setAlignment(Alignment::CenterLeft);
+  album_text.set_font_size(12.5f);
+  album_text.set_color(kMutedColor);
+  album_text.set_alignment(Alignment::CenterLeft);
 
   // 时长
-  duration_text.setFontSize(12.5f);
-  duration_text.setColor(kMutedColor);
-  duration_text.setAlignment(Alignment::CenterRight);
+  duration_text.set_font_size(12.5f);
+  duration_text.set_color(kMutedColor);
+  duration_text.set_alignment(Alignment::CenterRight);
 
   // 行背景
   hover_bg.radius = &hover_radius;
 
   // 固定高度
-  setMaxHeight(kRowHeight);
-  setMinHeight(kRowHeight);
+  set_fixed_height(kRowHeight);
 
   // 加载歌曲图片
   loadCoverImage();
@@ -267,60 +266,65 @@ SkColor SongItem::computeBackgroundColor() const noexcept {
   return bg;
 }
 
-void SongItem::onMouseEnter(float, float) {
-  is_pressed = false;
-  is_hovering = true;
+void SongItem::on_mouse_enter(float, float) {
   // 悬浮背景渐入
-  startAnimation(hover_t, 1.0f, 200.0f, &hover_t, CubicBezier::EaseOut());
+  start_animation(hover_t, 1.0f, 200.0f, &hover_t, CubicBezier::EaseOut());
   // 操作按钮淡入
-  startAnimation(action_t, 1.0f, 200.0f, &action_t, CubicBezier::EaseOut());
+  start_animation(action_t, 1.0f, 200.0f, &action_t, CubicBezier::EaseOut());
 }
 
-void SongItem::onMouseLeave(float, float) {
-  is_pressed = false;
-  is_hovering = false;
+void SongItem::on_mouse_leave(float, float) {
   window()->setCursor(glfw::CursorType::Arrow);
   // 悬浮背景渐出（比渐入稍慢，体感更柔和）
-  startAnimation(hover_t, 0.0f, 280.0f, &hover_t, CubicBezier::EaseOut());
+  start_animation(hover_t, 0.0f, 280.0f, &hover_t, CubicBezier::EaseOut());
   // 按下效果归零
   if (press_t > 0.0f) {
-    startAnimation(press_t, 0.0f, 150.0f, &press_t, CubicBezier::EaseOut());
+    start_animation(press_t, 0.0f, 150.0f, &press_t, CubicBezier::EaseOut());
   }
   // 操作按钮淡出
-  startAnimation(action_t, 0.0f, 200.0f, &action_t, CubicBezier::EaseOut());
+  start_animation(action_t, 0.0f, 200.0f, &action_t, CubicBezier::EaseOut());
 }
 
-void SongItem::onMouseLeftPressed(float, float) {
-  is_pressed = true;
+void SongItem::on_mouse_left_pressed(const float x, const float y) {
+  pressed_heart = isOverHeart(x, y);
+  pressed_more = isOverMore(x, y);
   // 按下效果快速响应
-  startAnimation(press_t, 1.0f, 80.0f, &press_t, CubicBezier::EaseOut());
+  start_animation(press_t, 1.0f, 80.0f, &press_t, CubicBezier::EaseOut());
 }
 
-void SongItem::onMouseRightPressed(float, float) {
+void SongItem::on_mouse_right_pressed(float, float) {
   contextMenuRequested.emit(this);
 }
 
-void SongItem::onMouseLeftReleased(float x, float y) {
-  is_pressed = false;
-
+void SongItem::on_mouse_left_released(const float x, const float y) {
   // 按下效果释放
-  startAnimation(press_t, 0.0f, 160.0f, &press_t, CubicBezier::EaseOut());
+  start_animation(press_t, 0.0f, 160.0f, &press_t, CubicBezier::EaseOut());
 
-  const auto now = profiling::frame_clock.now;
-  const auto elapsed = now - last_click_time;
-  last_click_time = now;
+  const bool over_heart = isOverHeart(x, y);
+  const bool over_more = isOverMore(x, y);
+  if (
+    !hovered_ || !visible() || !local_bounds().contains(x, y) || over_heart != pressed_heart
+    || over_more != pressed_more
+  ) {
+    last_click_time = 0;
+    return;
+  }
 
-  if (isOverHeart(x, y)) {
+  if (over_heart) {
+    last_click_time = 0;
     info_.liked = !info_.liked;
     like_t = 1.0f;
-    startAnimation<&SongItem::setLikeT>(like_t, 0.0f, 260.0f, CubicBezier::EaseOut());
+    start_animation<&SongItem::setLikeT>(like_t, 0.0f, 260.0f, CubicBezier::EaseOut());
     return;
   }
-  if (isOverMore(x, y)) {
+  if (over_more) {
+    last_click_time = 0;
     return;
   }
 
-  if (elapsed > 0 && elapsed < kDoubleClickThresholdUs) {
+  const auto now = profiling::frame_clock.now;
+  const auto previous = std::exchange(last_click_time, now);
+  if (previous != 0 && now - previous < kDoubleClickThresholdUs) {
     // 双击：选中当前项并发射信号
     last_click_time = 0;
     if (!selected_) {
@@ -329,7 +333,8 @@ void SongItem::onMouseLeftReleased(float x, float y) {
   }
 }
 
-void SongItem::onMouseMove(float x, float y) {
+void SongItem::on_mouse_move(const float x, const float y) {
+  if (!hovered_) return;
   if (isOverHeart(x, y) || isOverMore(x, y)) {
     window()->setCursor(glfw::CursorType::Hand);
   } else {
@@ -340,11 +345,11 @@ void SongItem::onMouseMove(float x, float y) {
 void SongItem::setSelected(const bool value) {
   if (selected_ == value) return;
   selected_ = value;
-  startAnimation(select_t, value ? 1.0f : 0.0f, 250.0f, &select_t, CubicBezier::EaseOut());
+  start_animation(select_t, value ? 1.0f : 0.0f, 250.0f, &select_t, CubicBezier::EaseOut());
 }
 
 bool SongItem::isOverHeart(const float x, const float y) const {
-  const float heart_cx = contentWidth() - kActionRightInset - 52.0f;
+  const float heart_cx = width() - kActionRightInset - 52.0f;
   constexpr float btn_cy = kRowHeight * 0.5f;
   const float dx = x - heart_cx;
   const float dy = y - btn_cy;
@@ -352,15 +357,15 @@ bool SongItem::isOverHeart(const float x, const float y) const {
 }
 
 bool SongItem::isOverMore(float x, float y) const {
-  const float dots_cx = contentWidth() - kActionRightInset - 22.0f;
+  const float dots_cx = width() - kActionRightInset - 22.0f;
   constexpr float btn_cy = kRowHeight * 0.5f;
   const float dx = x - dots_cx;
   const float dy = y - btn_cy;
   return dx * dx + dy * dy < 16.0f * 16.0f;
 }
 
-void SongItem::layoutChildren() {
-  const auto rect = contentRect();
+void SongItem::layout_children() {
+  const auto rect = local_bounds();
 
   // 行背景
   hover_bg.update(
@@ -412,20 +417,20 @@ void SongItem::paint(SkCanvas *canvas) {
 
   auto save_pressed_scale = [&] {
     canvas->save();
-    canvas->translate(contentWidth() * 0.5f, kRowHeight * 0.5f);
+    canvas->translate(width() * 0.5f, kRowHeight * 0.5f);
     canvas->scale(press_scale, press_scale);
-    canvas->translate(-contentWidth() * 0.5f, -kRowHeight * 0.5f);
+    canvas->translate(-width() * 0.5f, -kRowHeight * 0.5f);
   };
 
   save_pressed_scale();
 
   // 合成背景色并渲染
-  hover_bg.setColor(computeBackgroundColor());
-  hover_bg.render(canvas);
+  hover_bg.set_color(computeBackgroundColor());
+  hover_bg.draw(canvas);
 
   if (hover_t > 0.01f || select_t > 0.01f) {
     constexpr float sigma = 6.0f;
-    auto glow_rect = borderRect().makeInset(8.0f, 8.0f).makeOffset(0, 3.0f);
+    auto glow_rect = local_bounds().makeInset(8.0f, 8.0f).makeOffset(0, 3.0f);
     auto layer_bounds = glow_rect.makeOutset(sigma * 3.0f, sigma * 3.0f);
     SkPaint glow_layer;
     glow_layer.setImageFilter(SkImageFilters::Blur(sigma, sigma, nullptr));
@@ -439,7 +444,7 @@ void SongItem::paint(SkCanvas *canvas) {
     canvas->restore();
   }
 
-  cover_bg.render(canvas);
+  cover_bg.draw(canvas);
 
   if (!drawCoverImage(canvas)) {
     SkPaint coverShine;
@@ -453,19 +458,19 @@ void SongItem::paint(SkCanvas *canvas) {
       kCoverRadius - 2.0f,
       coverShine
     );
-    cover_svg.render(canvas);
+    cover_svg.draw(canvas);
   }
   canvas->restore();
 
-  index_text.render(canvas);
-  title_text.render(canvas);
-  album_text.render(canvas);
-  artist_text.render(canvas);
-  duration_text.render(canvas);
+  index_text.draw(canvas);
+  title_text.draw(canvas);
+  album_text.draw(canvas);
+  artist_text.draw(canvas);
+  duration_text.draw(canvas);
 
   // 操作按钮：基于 action_t 控制透明度
   if (!title_text.text().empty()) {
-    const float content_w = contentWidth();
+    const float content_w = width();
     constexpr float btn_cy = kRowHeight * 0.5f;
 
     // 喜欢按钮（心形）：liked 时始终可见，否则跟随 action_t

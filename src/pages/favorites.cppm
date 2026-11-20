@@ -24,7 +24,7 @@ constexpr std::string_view kFavoritesContextId = "favorites"; // 我喜欢播放
 
 export namespace pages {
 
-class FavoritesPage : public Widget {
+class FavoritesPage : public Border {
 public:
   /**
    * 创建我喜欢页面。
@@ -124,25 +124,27 @@ private:
   bool has_more = true;                 // 是否还有更多数据
 };
 
-FavoritesPage::FavoritesPage(Widget *parent) : Widget(parent) {
-  setLayout<VBoxLayout<Widget>>();
-  layout()->setSpacing(8);
-  setPadding(Insets(28, 24, 34, 12));
+FavoritesPage::FavoritesPage(Widget *parent) : Border(parent) {
+  set_padding(Insets(28, 24, 34, 12));
+  auto *const content = new Widget(this);
+  auto *const layout = new VBoxLayout();
+  layout->set_spacing(8.0f);
+  content->set_layout(layout);
 
-  const auto title = new Text("我喜欢", this);
-  title->setFontSize(30);
-  title->setColor(ColorFromARGB(255, 20, 26, 36));
-  title->setAlignment(Alignment::CenterLeft);
-  title->setMaxHeight(42.0f);
+  const auto title = new Text("我喜欢", content);
+  title->set_font_size(30);
+  title->set_color(ColorFromARGB(255, 20, 26, 36));
+  title->set_alignment(Alignment::CenterLeft);
+  title->set_fixed_height(42.0f);
 
-  const auto subtitle = new Text("双击歌曲开始播放，列表会在滚动到底部时继续加载", this);
-  subtitle->setFontSize(12.5f);
-  subtitle->setColor(ColorFromARGB(170, 56, 68, 86));
-  subtitle->setAlignment(Alignment::CenterLeft);
-  subtitle->setMaxHeight(24.0f);
+  const auto subtitle = new Text("双击歌曲开始播放，列表会在滚动到底部时继续加载", content);
+  subtitle->set_font_size(12.5f);
+  subtitle->set_color(ColorFromARGB(170, 56, 68, 86));
+  subtitle->set_alignment(Alignment::CenterLeft);
+  subtitle->set_fixed_height(24.0f);
 
-  items_ = new ScrollArea(this);
-  items_->scrollChanged.connect<&FavoritesPage::checkLoadMore>(this);
+  items_ = new ScrollArea(content);
+  items_->scroll_changed.connect<&FavoritesPage::checkLoadMore>(this);
   store::user_profile_store.status_changed.connect<&FavoritesPage::loadMore>(this);
   playback::controller.currentSongChanged.connect<&FavoritesPage::onCurrentSongChanged>(this);
 }
@@ -151,7 +153,7 @@ void FavoritesPage::paint(SkCanvas *canvas) {
   SkPaint fill;
   fill.setAntiAlias(true);
   fill.setColor(ColorFromARGB(110, 255, 255, 255));
-  canvas->drawRect(borderRect(), fill);
+  canvas->drawRect(local_bounds(), fill);
 
   SkPaint top_light;
   top_light.setAntiAlias(true);
@@ -170,8 +172,7 @@ void FavoritesPage::checkLoadMore(const float scroll_offset) {
   }
 
   constexpr float kSongItemHeight = 68.0f;
-  const int bottom_index =
-    static_cast<int>((scroll_offset + items_->contentHeight()) / kSongItemHeight);
+  const int bottom_index = static_cast<int>((scroll_offset + items_->height()) / kSongItemHeight);
   if (item_count - bottom_index <= 5) {
     loadMore();
   }
@@ -253,7 +254,7 @@ void FavoritesPage::applyLoadedSongs(
 
   offset_ = current_offset + loaded_count;
   playback::controller.updateContext(kFavoritesContextId, collectSongs());
-  markLayoutDirty();
+  mark_layout_dirty();
 }
 
 void FavoritesPage::onLoadFailed(const std::string &message) {
