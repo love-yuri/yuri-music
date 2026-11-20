@@ -199,15 +199,23 @@ public:
    * @param context_id 播放上下文标识
    * @param songs 播放上下文中的有序歌曲
    * @param mid 需要立即播放的歌曲 mid
+   * @param complete 是否已加载完整的播放上下文
    */
-  void playFromContext(std::string context_id, std::vector<SongInfo> songs, std::string_view mid);
+  void playFromContext(
+    std::string context_id,
+    std::vector<SongInfo> songs,
+    std::string_view mid,
+    bool complete = true
+  );
 
   /**
    * 更新已经激活的播放上下文。
    * @param context_id 播放上下文标识
    * @param songs 上下文中的最新歌曲列表
+   * @param complete 是否已加载完整的播放上下文
    */
-  void updateContext(std::string_view context_id, std::vector<SongInfo> songs);
+  void
+  updateContext(std::string_view context_id, std::vector<SongInfo> songs, bool complete = true);
 
   /**
    * 将歌曲加入显式下一首队列。
@@ -254,6 +262,7 @@ public:
   Signal<bass24::PlaybackState> playbackStateChanged{}; // 播放状态变化事件
   Signal<double> playbackDurationChanged{};             // 播放时长变化事件
   Signal<float> volumeChanged{};                        // 播放音量变化事件
+  Signal<std::string_view> contextSongsRequested{};     // 请求继续加载播放上下文
 
 private:
   /** 播放队列中的歌曲记录。 */
@@ -307,6 +316,8 @@ private:
   std::mt19937 random_engine{ std::random_device{}() }; // 随机播放引擎
   std::atomic_uint64_t playback_generation;             // 播放请求版本
   bool random_playback = false;                         // 是否随机播放
+  bool context_complete = true;                         // 当前上下文是否已加载完整
+  bool random_next_pending = false;                     // 是否等待完整上下文后随机播放
 };
 
 PlaybackController::PlaybackController() {
@@ -319,7 +330,8 @@ PlaybackController::PlaybackController() {
 void PlaybackController::playFromContext(
   std::string context_id,
   std::vector<SongInfo> songs,
-  const std::string_view mid
+  const std::string_view mid,
+  const bool complete
 ) {
   const auto selected = std::ranges::find(songs, mid, &SongInfo::mid);
   if (selected == songs.end()) {
@@ -331,13 +343,16 @@ void PlaybackController::playFromContext(
   this->context_id = std::move(context_id);
   context_songs = std::move(songs);
   context_index = selected_index;
+  context_complete = complete;
+  random_next_pending = false;
   history.clear();
   playEntry(PlaybackEntry{ context_songs[*context_index], context_index });
 }
 
 void PlaybackController::updateContext(
   const std::string_view context_id,
-  std::vector<SongInfo> songs
+  std::vector<SongInfo> songs,
+  const bool complete
 ) {
   if (this->context_id != context_id) {
     return;
@@ -349,17 +364,17 @@ void PlaybackController::updateContext(
   }
 
   context_songs = std::move(songs);
-  if (cursor_mid.empty()) {
+  const auto cursor = std::ranges::find(context_songs, cursor_mid, &SongInfo::mid);
+  if (cursor_mid.empty() || cursor == context_songs.end()) {
     context_index.reset();
-    return;
+  } else {
+    context_index = static_cast<std::size_t>(cursor - context_songs.begin());
   }
 
-  const auto cursor = std::ranges::find(context_songs, cursor_mid, &SongInfo::mid);
-  if (cursor == context_songs.end()) {
-    context_index.reset();
-    return;
+  context_complete = complete;
+  if (context_complete && random_next_pending) {
+    next();
   }
-  context_index = static_cast<std::size_t>(cursor - context_songs.begin());
 }
 
 void PlaybackController::enqueueNext(const SongInfo &song) {
@@ -372,6 +387,7 @@ void PlaybackController::enqueueNext(const SongInfo &song) {
 }
 
 void PlaybackController::previous() {
+  random_next_pending = false;
   if (history.empty() && (!context_index || *context_index == 0 || random_playback)) {
     return;
   }
@@ -391,11 +407,18 @@ void PlaybackController::previous() {
 }
 
 void PlaybackController::next() {
+  random_next_pending = false;
   if (!next_queue.empty()) {
     rememberCurrent();
     auto song = std::move(next_queue.front());
     next_queue.pop_front();
     playEntry(PlaybackEntry{ std::move(song), std::nullopt });
+    return;
+  }
+
+  if (random_playback && !context_complete) {
+    random_next_pending = true;
+    contextSongsRequested.emit(context_id);
     return;
   }
 
@@ -429,6 +452,9 @@ void PlaybackController::next() {
 
 void PlaybackController::setRandomPlayback(const bool enabled) noexcept {
   random_playback = enabled;
+  if (!enabled) {
+    random_next_pending = false;
+  }
 }
 
 void PlaybackController::togglePause() const {

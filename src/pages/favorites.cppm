@@ -21,6 +21,7 @@ using namespace ui::render;
 using namespace ui::widgets;
 
 constexpr std::string_view kFavoritesContextId = "favorites"; // 我喜欢播放上下文标识
+constexpr int kFavoritesPageSize = 30;                        // 每次加载的歌曲数量
 
 /**
  * 格式化歌曲时长。
@@ -68,22 +69,22 @@ private:
    */
   void checkLoadMore(float scroll_offset);
 
-  /** 加载下一页歌曲。 */
+  /** 显示下一页歌曲，必要时等待后台加载。 */
   void loadMore();
+
+  /** 在后台获取歌单的下一页。 */
+  void fetchNextPage();
+
+  /** 将待显示的一页歌曲添加到列表。 */
+  void showLoadedSongs();
 
   /**
    * 将后台加载结果应用到页面。
    * @param tid 我喜欢歌单 ID
-   * @param current_offset 本次加载起始偏移
    * @param songs 本次加载的歌曲
-   * @param playlist_found 是否找到我喜欢歌单
+   * @param song_count 歌单歌曲总数，未知时为 0
    */
-  void applyLoadedSongs(
-    std::uint64_t tid,
-    int current_offset,
-    const std::vector<SongInfo>& songs,
-    bool playlist_found
-  );
+  void applyLoadedSongs(std::uint64_t tid, std::vector<SongInfo> songs, int song_count);
 
   /**
    * 处理歌曲加载失败。
@@ -95,7 +96,13 @@ private:
    * 处理歌曲行双击事件。
    * @param item 被双击的歌曲行
    */
-  void onSongDoubleClicked(const SongItem *item) const;
+  void onSongDoubleClicked(const SongItem *item);
+
+  /**
+   * 在随机播放等待歌单时继续后台加载。
+   * @param context_id 请求加载的播放上下文标识
+   */
+  void onContextSongsRequested(std::string_view context_id);
 
   /**
    * 转发歌曲行上下文菜单请求。
@@ -109,19 +116,17 @@ private:
    */
   void onCurrentSongChanged(const SongInfo &info);
 
-  /**
-   * 获取当前已经加载的歌曲上下文。
-   * @return 按页面顺序排列的歌曲信息
-   */
-  [[nodiscard]] std::vector<SongInfo> collectSongs() const;
-
   SongItem *selected_item{};            // 当前页面选中的歌曲项
   ScrollArea *items_{};                 // 歌曲列表
   std::vector<SongItem *> song_items{}; // 按列表顺序保存歌曲项
+  std::vector<SongInfo> playlist_songs; // 按歌单顺序缓存已获取的歌曲
+  std::string current_song_mid;         // 当前歌曲标识，用于选中稍后显示的歌曲行
   std::uint64_t tid_{};                 // 当前歌单 ID
-  int offset_{};                        // 当前加载偏移
+  int playlist_song_count{};            // 最近获取的歌单歌曲总数
   bool loading_ = false;                // 是否正在加载
-  bool has_more = true;                 // 是否还有更多数据
+  bool playlist_complete = false;       // 是否已获取完整歌单
+  bool prefetch_all = false;            // 是否正在为播放预取整张歌单
+  bool show_more = false;               // 是否有待显示的分页
 };
 
 FavoritesPage::FavoritesPage(Widget *parent) : Border(parent) {
@@ -147,6 +152,7 @@ FavoritesPage::FavoritesPage(Widget *parent) : Border(parent) {
   items_->scroll_changed.connect<&FavoritesPage::checkLoadMore>(this);
   store::user_profile_store.status_changed.connect<&FavoritesPage::loadMore>(this);
   playback::controller.currentSongChanged.connect<&FavoritesPage::onCurrentSongChanged>(this);
+  playback::controller.contextSongsRequested.connect<&FavoritesPage::onContextSongsRequested>(this);
 }
 
 void FavoritesPage::paint(SkCanvas *canvas) {
@@ -162,11 +168,7 @@ void FavoritesPage::paint(SkCanvas *canvas) {
 }
 
 void FavoritesPage::checkLoadMore(const float scroll_offset) {
-  if (loading_ || !has_more) {
-    return;
-  }
-
-  const auto item_count = static_cast<int>(items_->children().size());
+  const auto item_count = static_cast<int>(song_items.size());
   if (item_count == 0) {
     return;
   }
@@ -179,81 +181,120 @@ void FavoritesPage::checkLoadMore(const float scroll_offset) {
 }
 
 void FavoritesPage::loadMore() {
-  if (loading_ || !has_more) {
+  if (!show_more) {
+    show_more = true;
+    // 滚动信号可能在布局期间触发，等布局结束后再添加歌曲行。
+    ui::dispatcher.post([this] { showLoadedSongs(); });
+  }
+  fetchNextPage();
+}
+
+void FavoritesPage::fetchNextPage() {
+  if (loading_ || playlist_complete) {
     return;
   }
 
   loading_ = true;
-  const int current_offset = offset_;
+  const auto current_offset = static_cast<int>(playlist_songs.size());
   const std::uint64_t current_tid = tid_;
-  thread_manager->addTask([this, current_offset, current_tid] {
+  const int known_song_count = playlist_song_count;
+  thread_manager->addTask([this, current_offset, current_tid, known_song_count] {
     using namespace qqmusic_api::playlist;
     try {
       std::uint64_t resolved_tid = current_tid;
+      int song_count = known_song_count;
       if (resolved_tid == 0) {
         for (const auto &value : get_user_playlists().data.disslist) {
           if (value.diss_name == "我喜欢") {
             resolved_tid = value.tid;
+            song_count = value.song_cnt;
             break;
           }
         }
       }
 
       if (resolved_tid == 0) {
-        ui::dispatcher.post([this, current_offset] {
-          applyLoadedSongs(0, current_offset, {}, false);
-        });
+        ui::dispatcher.post([this] { applyLoadedSongs(0, {}, 0); });
         return;
       }
 
-      const auto result = get_user_playlists_detail(resolved_tid, current_offset, 30).req_1.data;
+      const auto result =
+        get_user_playlists_detail(resolved_tid, current_offset, kFavoritesPageSize);
+      if (result.code != 0 || result.req_1.code != 0) {
+        throw std::runtime_error("获取歌单详情失败");
+      }
+
+      const auto &data = result.req_1.data;
+      if (data.dirinfo.songnum > 0) {
+        song_count = data.dirinfo.songnum;
+      }
+      if (data.songlist.empty() && current_offset < song_count) {
+        throw std::runtime_error("歌单歌曲尚未加载完整");
+      }
+
       std::vector<SongInfo> songs;
-      songs.reserve(result.songlist.size());
-      for (const auto &music : result.songlist) {
+      songs.reserve(data.songlist.size());
+      for (const auto &music : data.songlist) {
         songs.emplace_back(makeSongInfo(music));
       }
 
-      ui::dispatcher.post([this, resolved_tid, current_offset, songs = std::move(songs)]() mutable {
-        applyLoadedSongs(resolved_tid, current_offset, songs, true);
+      ui::dispatcher.post([this, resolved_tid, songs = std::move(songs), song_count] mutable {
+        applyLoadedSongs(resolved_tid, std::move(songs), song_count);
       });
     } catch (const std::exception &e) {
       const std::string message = e.what();
-      ui::dispatcher.post([this, message] {
-        onLoadFailed(message);
-      });
+      ui::dispatcher.post([this, message] { onLoadFailed(message); });
     }
   });
 }
 
 void FavoritesPage::applyLoadedSongs(
   const std::uint64_t tid,
-  const int current_offset,
-  const std::vector<SongInfo>& songs,
-  const bool playlist_found
+  std::vector<SongInfo> songs,
+  const int song_count
 ) {
   loading_ = false;
-  if (!playlist_found) {
+  if (tid == 0) {
     yuri::warn("未找到“我喜欢”歌单");
     return;
   }
 
   tid_ = tid;
-  if (songs.empty()) {
-    has_more = false;
+  playlist_song_count = song_count;
+  playlist_songs.append_range(songs | std::views::as_rvalue);
+  playlist_complete =
+    songs.empty() || (song_count > 0 && std::cmp_greater_equal(playlist_songs.size(), song_count));
+  showLoadedSongs();
+  if (playlist_complete) {
+    playback::controller.updateContext(kFavoritesContextId, playlist_songs);
+  } else if (prefetch_all || show_more) {
+    fetchNextPage();
+  }
+}
+
+void FavoritesPage::showLoadedSongs() {
+  const auto first = song_items.size();
+  const auto end = std::min(first + kFavoritesPageSize, playlist_songs.size());
+  if (!show_more || first == end) {
     return;
   }
 
-  const auto loaded_count = static_cast<int>(songs.size());
-  int index = current_offset;
-  for (auto &song : songs) {
-    auto *const item = new SongItem(index++, song, false, items_);
+  show_more = false;
+  for (auto index = first; index < end; ++index) {
+    const auto &song = playlist_songs[index];
+    auto *const item = new SongItem(static_cast<int>(index), song, false, items_);
     item->doubleClicked.connect<&FavoritesPage::onSongDoubleClicked>(this);
     item->contextMenuRequested.connect<&FavoritesPage::onSongContextMenuRequested>(this);
     song_items.push_back(item);
+    if (selected_item == nullptr && !current_song_mid.empty() && song.mid == current_song_mid) {
+      selected_item = item;
+      item->setSelected(true);
+    }
   }
 
-  offset_ = current_offset + loaded_count;
-  playback::controller.updateContext(kFavoritesContextId, collectSongs());
+  if (!playlist_complete) {
+    playback::controller.updateContext(kFavoritesContextId, playlist_songs, false);
+  }
   mark_layout_dirty();
 }
 
@@ -262,13 +303,21 @@ void FavoritesPage::onLoadFailed(const std::string &message) {
   yuri::warn("加载我喜欢歌单失败: {}", message);
 }
 
-void FavoritesPage::onSongDoubleClicked(const SongItem *item) const {
+void FavoritesPage::onSongDoubleClicked(const SongItem *item) {
   if (item == nullptr) {
     return;
   }
+  prefetch_all = true;
   playback::controller.playFromContext(
-    std::string(kFavoritesContextId), collectSongs(), item->info().mid
+    std::string(kFavoritesContextId), playlist_songs, item->info().mid, playlist_complete
   );
+  fetchNextPage();
+}
+
+void FavoritesPage::onContextSongsRequested(const std::string_view context_id) {
+  if (context_id == kFavoritesContextId) {
+    fetchNextPage();
+  }
 }
 
 void FavoritesPage::onSongContextMenuRequested(const SongItem *item) {
@@ -278,6 +327,7 @@ void FavoritesPage::onSongContextMenuRequested(const SongItem *item) {
 }
 
 void FavoritesPage::onCurrentSongChanged(const SongInfo &info) {
+  current_song_mid = info.mid;
   const auto selected = std::ranges::find_if(song_items, [&info](const SongItem *item) {
     return item->info().mid == info.mid;
   });
@@ -290,15 +340,6 @@ void FavoritesPage::onCurrentSongChanged(const SongInfo &info) {
   if (selected_item != nullptr) {
     selected_item->setSelected(true);
   }
-}
-
-std::vector<SongInfo> FavoritesPage::collectSongs() const {
-  std::vector<SongInfo> songs;
-  songs.reserve(song_items.size());
-  for (const auto *item : song_items) {
-    songs.push_back(item->info());
-  }
-  return songs;
 }
 
 } // namespace pages
