@@ -21,58 +21,76 @@ using namespace ui::render;
 using namespace store;
 using namespace skia;
 
-constexpr SkColor kProfileCardBg = ColorFromARGB(150, 255, 255, 255);
-constexpr SkColor kProfileCardBorder = ColorFromARGB(116, 255, 255, 255);
-constexpr SkColor kProfileName = ColorFromARGB(255, 22, 28, 38);
-constexpr SkColor kProfileMuted = ColorFromARGB(174, 58, 70, 88);
-constexpr SkColor kProfileAvatarBg = ColorFromARGB(255, 38, 189, 220);
+constexpr SkColor kProfileCardBg = ColorFromARGB(150, 255, 255, 255);     // 卡片背景色
+constexpr SkColor kProfileCardBorder = ColorFromARGB(116, 255, 255, 255); // 卡片边线色
+constexpr SkColor kProfileName = ColorFromARGB(255, 22, 28, 38);          // 用户名颜色
+constexpr SkColor kProfileMuted = ColorFromARGB(174, 58, 70, 88);         // 登录状态文字颜色
+constexpr SkColor kProfileAvatarBg = ColorFromARGB(255, 38, 189, 220);    // 已登录的头像底色
 
-std::string firstUtf8Char(const std::string_view text) {
-  if (text.empty()) {
-    return "音";
-  }
+/**
+ * 取出文本开头的 UTF-8 字符，空文本返回“音”。
+ * @param text UTF-8 文本
+ * @return 头像占位用的字符
+ */
+std::string firstUtf8Char(std::string_view text);
 
-  const auto ch = static_cast<unsigned char>(text.front());
-  std::size_t size = 1;
-  if ((ch & 0b1110'0000) == 0b1100'0000) {
-    size = 2;
-  } else if ((ch & 0b1111'0000) == 0b1110'0000) {
-    size = 3;
-  } else if ((ch & 0b1111'1000) == 0b1111'0000) {
-    size = 4;
-  }
-  return std::string(text.substr(0, std::min(size, text.size())));
-}
-
-std::string avatarLabel() {
-  if (!user_profile_store.loggedIn()) {
-    return "未";
-  }
-  return firstUtf8Char(user_profile_store.displayName());
-}
+/** 根据登录状态和用户名生成头像占位文字。 */
+std::string avatarLabel();
 
 export namespace components {
 
 class UserProfileCard : public Box {
 public:
+  /**
+   * 创建用户资料卡。
+   * @param compact 是否使用紧凑布局
+   * @param parent 父控件
+   */
   explicit UserProfileCard(bool compact, Widget *parent = nullptr);
+
+  /** 解除登录状态变化信号的订阅。 */
   ~UserProfileCard() override;
 
+  /** 更新卡片背景、边框和文字的绘制范围。 */
   void layout_children() override;
+
+  /**
+   * 绘制头像、用户名和登录状态。
+   * @param canvas 目标画布
+   */
   void paint(SkCanvas *canvas) override;
 
 private:
+  /** 刷新用户资料文字和头像。 */
   void updateTextNodes();
+
+  /**
+   * 异步加载头像图片。
+   * @param url 头像地址
+   */
   void loadAvatarImage(std::string_view url);
+
+  /**
+   * 将已加载的头像图片绘制到圆形区域。
+   * @param canvas 目标画布
+   * @param rect 头像区域
+   * @return 是否绘制了头像图片
+   */
   bool drawAvatarImage(SkCanvas *canvas, const SkRect &rect) const;
+
+  /**
+   * 绘制头像或占位文字。
+   * @param canvas 目标画布
+   * @param rect 头像区域
+   */
   void drawAvatar(SkCanvas *canvas, const SkRect &rect);
 
-  bool compact_ = true;
-  RenderText name_text;
-  RenderText status_text;
-  RenderText avatar_text;
-  std::string avatar_url_{};
-  sk_sp<SkImage> avatar_image{};
+  bool compact_ = true;          // 是否使用紧凑布局
+  RenderText name_text;          // 用户名
+  RenderText status_text;        // 登录状态文字
+  RenderText avatar_text;        // 头像占位文字
+  std::string avatar_url{};      // 当前头像地址
+  sk_sp<SkImage> avatar_image{}; // 已加载的头像图片
 };
 
 UserProfileCard::UserProfileCard(const bool compact, Widget *parent) :
@@ -165,17 +183,17 @@ void UserProfileCard::updateTextNodes() {
 }
 
 void UserProfileCard::loadAvatarImage(const std::string_view url) {
-  if (avatar_url_ == url) {
+  if (avatar_url == url) {
     return;
   }
 
-  avatar_url_ = std::string(url);
+  avatar_url = std::string(url);
   avatar_image = nullptr;
-  if (avatar_url_.empty()) {
+  if (avatar_url.empty()) {
     return;
   }
 
-  const auto image_url = avatar_url_;
+  const auto image_url = avatar_url;
   thread_manager->addTask([this, image_url] {
     try {
       const auto image_data = curl::get(image_url).value();
@@ -227,3 +245,27 @@ void UserProfileCard::drawAvatar(SkCanvas *canvas, const SkRect &rect) {
 }
 
 } // namespace components
+
+std::string firstUtf8Char(const std::string_view text) {
+  if (text.empty()) {
+    return "音";
+  }
+
+  const auto ch = static_cast<unsigned char>(text.front());
+  std::size_t size = 1;
+  if ((ch & 0b1110'0000) == 0b1100'0000) {
+    size = 2;
+  } else if ((ch & 0b1111'0000) == 0b1110'0000) {
+    size = 3;
+  } else if ((ch & 0b1111'1000) == 0b1111'0000) {
+    size = 4;
+  }
+  return std::string(text.substr(0, std::min(size, text.size())));
+}
+
+std::string avatarLabel() {
+  if (!user_profile_store.loggedIn()) {
+    return "未";
+  }
+  return firstUtf8Char(user_profile_store.displayName());
+}

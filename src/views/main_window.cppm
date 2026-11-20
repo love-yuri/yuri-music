@@ -38,26 +38,6 @@ constexpr std::uint64_t kPlaybackPositionSyncIntervalUs = 100000;   // 播放位
  */
 void drawBlurredOval(SkCanvas *canvas, const SkRect &rect, SkColor color, float sigma);
 
-void drawBlurredOval(
-  SkCanvas *const canvas,
-  const SkRect &rect,
-  const SkColor color,
-  const float sigma
-) {
-  const auto bounds = rect.makeOutset(sigma * 3.0f, sigma * 3.0f);
-  SkPaint layer;
-  layer.setImageFilter(SkImageFilters::Blur(sigma, sigma, nullptr));
-
-  SkPaint fill;
-  fill.setAntiAlias(true);
-  fill.setColor(color);
-
-  // 使用独立图层限制模糊范围，避免柔光影响其他绘制内容
-  canvas->saveLayer(&bounds, &layer);
-  canvas->drawOval(rect, fill);
-  canvas->restore();
-}
-
 export class MainWindow : public Window {
 public:
   /** 创建主窗口和页面结构。 */
@@ -453,4 +433,24 @@ void MainWindow::render(SkCanvas *const canvas) {
   }
 
   Widget::render(canvas);
+}
+
+void drawBlurredOval(
+  SkCanvas *const canvas,
+  const SkRect &rect,
+  const SkColor color,
+  const float sigma
+) {
+  const auto bounds = rect.makeOutset(sigma * 3.0f, sigma * 3.0f);
+  SkPaint layer;
+  layer.setImageFilter(SkImageFilters::Blur(sigma, sigma, nullptr));
+
+  SkPaint fill;
+  fill.setAntiAlias(true);
+  fill.setColor(color);
+
+  // 使用独立图层限制模糊范围，避免柔光影响其他绘制内容
+  canvas->saveLayer(&bounds, &layer);
+  canvas->drawOval(rect, fill);
+  canvas->restore();
 }

@@ -118,10 +118,11 @@ private:
   /** 判断鼠标是否悬浮在更多按钮上 */
   [[nodiscard]] bool isOverMore(float x, float y) const;
 
-  /** 设置喜欢按钮弹性动画进度 */
-  void setLikeT(const float t) noexcept {
-    like_t = t;
-  }
+  /**
+   * 设置喜欢按钮弹性动画进度。
+   * @param t 动画进度
+   */
+  void setLikeT(float t) noexcept;
 
   /** 异步加载专辑封面 */
   void loadCoverImage();
@@ -346,6 +347,10 @@ void SongItem::setSelected(const bool value) {
   if (selected_ == value) return;
   selected_ = value;
   start_animation(select_t, value ? 1.0f : 0.0f, 250.0f, &select_t, CubicBezier::EaseOut());
+}
+
+void SongItem::setLikeT(const float t) noexcept {
+  like_t = t;
 }
 
 bool SongItem::isOverHeart(const float x, const float y) const {

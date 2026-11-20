@@ -13,8 +13,6 @@ using namespace ui::widgets;
 using namespace skia;
 using namespace components;
 
-namespace {
-
 constexpr SkColor kHomeTitleColor = ColorFromARGB(255, 20, 26, 36);     // 首页标题色
 constexpr SkColor kHomeSubtitleColor = ColorFromARGB(178, 55, 68, 87);  // 首页副标题色
 constexpr SkColor kHomePageFill = ColorFromARGB(104, 255, 255, 255);    // 页面底色
@@ -34,12 +32,11 @@ constexpr SkColor kIconOrange = ColorFromARGB(255, 245, 155, 54); // 橙色图�
 /**
  * 根据外部宽度选择推荐卡片的列数。
  * @param width 滚动视口宽度
+ * @return 推荐卡片列数
  */
 std::size_t columnCount(float width);
 
-std::size_t columnCount(const float width) {
-  return width - kHomePadding.left - kHomePadding.right >= kWideGrid ? 2 : 1;
-}
+namespace pages {
 
 /** 包含标题和推荐卡片的可滚动内容。 */
 class HomeContent : public Widget {
@@ -51,25 +48,42 @@ public:
   explicit HomeContent(Widget *parent);
 
   /**
-   * 绘制首页背景。
-   * @param canvas 目标画布
+   * 按视口宽度计算显示完整内容所需的高度。
+   * @param width 滚动视口宽度
+   * @return 显示完整内容所需的高度
    */
-  void paint(SkCanvas *canvas) override;
+  [[nodiscard]] float requiredHeight(float width) const;
 
   /** 更新标题与推荐卡片布局。 */
   void layout_children() override;
 
   /**
-   * 按视口宽度计算显示完整内容所需的高度。
-   * @param width 滚动视口宽度
+   * 绘制首页背景。
+   * @param canvas 目标画布
    */
-  [[nodiscard]] float requiredHeight(float width) const;
+  void paint(SkCanvas *canvas) override;
 
 private:
   Text *greeting_text{};                         // 标题
   Text *subtitle_text{};                         // 子标题
   SectionHeader *recommend_header{};             // 推荐区标题
   std::vector<QuickCard *> recommendation_cards; // 推荐卡片
+};
+
+/** 窄窗口或播放栏占用空间时，首页仍可滚动浏览全部推荐。 */
+export class HomePage : public ScrollArea {
+public:
+  /**
+   * 创建首页和滚动内容。
+   * @param parent 父控件
+   */
+  explicit HomePage(Widget *parent = nullptr);
+
+  /** 根据视口与卡片网格的高度更新滚动范围。 */
+  void layout_children() override;
+
+private:
+  HomeContent *content_; // 首页内容容器
 };
 
 HomeContent::HomeContent(Widget *parent) :
@@ -141,35 +155,15 @@ void HomeContent::paint(SkCanvas *canvas) {
   SkPaint glow;
   glow.setAntiAlias(true);
   glow.setColor(ColorFromARGB(24, 255, 76, 119));
-  constexpr float glow_sigma = 24.0f;
-  auto glow_rect = SkRect::MakeXYWH(width_ - 220.0f, -58.0f, 230.0f, 150.0f);
-  auto glow_bounds = glow_rect.makeOutset(glow_sigma * 3.0f, glow_sigma * 3.0f);
+  constexpr float kGlowSigma = 24.0f;
+  const auto glow_rect = SkRect::MakeXYWH(width_ - 220.0f, -58.0f, 230.0f, 150.0f);
+  const auto glow_bounds = glow_rect.makeOutset(kGlowSigma * 3.0f, kGlowSigma * 3.0f);
   SkPaint glow_layer;
-  glow_layer.setImageFilter(SkImageFilters::Blur(glow_sigma, glow_sigma, nullptr));
+  glow_layer.setImageFilter(SkImageFilters::Blur(kGlowSigma, kGlowSigma, nullptr));
   canvas->saveLayer(&glow_bounds, &glow_layer);
   canvas->drawOval(glow_rect, glow);
   canvas->restore();
 }
-
-} // namespace
-
-export namespace pages {
-
-/** 窄窗口或播放栏占用空间时，首页仍可滚动浏览全部推荐。 */
-class HomePage : public ScrollArea {
-public:
-  /**
-   * 创建首页和滚动内容。
-   * @param parent 父控件
-   */
-  explicit HomePage(Widget *parent = nullptr);
-
-  /** 根据视口与卡片网格的高度更新滚动范围。 */
-  void layout_children() override;
-
-private:
-  HomeContent *content_; // 首页内容容器
-};
 
 HomePage::HomePage(Widget *parent) : ScrollArea(parent), content_(new HomeContent(this)) {
 }
@@ -180,3 +174,7 @@ void HomePage::layout_children() {
 }
 
 } // namespace pages
+
+std::size_t columnCount(const float width) {
+  return width - kHomePadding.left - kHomePadding.right >= kWideGrid ? 2 : 1;
+}

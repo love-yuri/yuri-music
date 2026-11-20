@@ -22,6 +22,27 @@ using namespace ui::widgets;
 
 constexpr std::string_view kFavoritesContextId = "favorites"; // 我喜欢播放上下文标识
 
+/**
+ * 格式化歌曲时长。
+ * @param seconds 歌曲时长，单位为秒
+ * @return m:ss 格式的时长文本
+ */
+std::string formatDuration(int seconds);
+
+/**
+ * 拼接歌手名称。
+ * @param singers 歌手列表
+ * @return 使用分隔符拼接后的歌手名称
+ */
+std::string formatSingers(const std::vector<SingerType> &singers);
+
+/**
+ * 从 QQ 音乐歌曲信息构建列表项数据。
+ * @param music QQ 音乐歌单歌曲信息
+ * @return 歌曲行展示和播放所需的数据
+ */
+SongInfo makeSongInfo(const SonglistType &music);
+
 export namespace pages {
 
 class FavoritesPage : public Border {
@@ -93,27 +114,6 @@ private:
    * @return 按页面顺序排列的歌曲信息
    */
   [[nodiscard]] std::vector<SongInfo> collectSongs() const;
-
-  /**
-   * 格式化歌曲时长。
-   * @param seconds 歌曲时长，单位为秒
-   * @return m:ss 格式的时长文本
-   */
-  static std::string formatDuration(int seconds);
-
-  /**
-   * 拼接歌手名称。
-   * @param singers 歌手列表
-   * @return 使用分隔符拼接后的歌手名称
-   */
-  static std::string formatSingers(const std::vector<SingerType> &singers);
-
-  /**
-   * 从 QQ 音乐歌曲信息构建列表项数据。
-   * @param music QQ 音乐歌单歌曲信息
-   * @return 歌曲行展示和播放所需的数据
-   */
-  static SongInfo makeSongInfo(const SonglistType &music);
 
   SongItem *selected_item{};            // 当前页面选中的歌曲项
   ScrollArea *items_{};                 // 歌曲列表
@@ -301,7 +301,9 @@ std::vector<SongInfo> FavoritesPage::collectSongs() const {
   return songs;
 }
 
-std::string FavoritesPage::formatDuration(const int seconds) {
+} // namespace pages
+
+std::string formatDuration(const int seconds) {
   char buffer[8];
   auto [end, ec] =
     std::format_to_n(buffer, sizeof(buffer) - 1, "{}:{:02}", seconds / 60, seconds % 60);
@@ -309,7 +311,7 @@ std::string FavoritesPage::formatDuration(const int seconds) {
   return { buffer, static_cast<std::size_t>(end - buffer) };
 }
 
-std::string FavoritesPage::formatSingers(const std::vector<SingerType> &singers) {
+std::string formatSingers(const std::vector<SingerType> &singers) {
   if (singers.empty()) {
     return {};
   }
@@ -332,7 +334,7 @@ std::string FavoritesPage::formatSingers(const std::vector<SingerType> &singers)
   return result;
 }
 
-SongInfo FavoritesPage::makeSongInfo(const SonglistType &music) {
+SongInfo makeSongInfo(const SonglistType &music) {
   return SongInfo {
     .title = std::string(music.title),
     .artist = formatSingers(music.singer),
@@ -347,5 +349,3 @@ SongInfo FavoritesPage::makeSongInfo(const SonglistType &music) {
     .liked = true,
   };
 }
-
-} // namespace pages

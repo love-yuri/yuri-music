@@ -15,17 +15,17 @@ using namespace ui::animation;
 using namespace ui::algorithm;
 using namespace skia;
 
+constexpr float kCardRadius = 12.0f;                                    // 卡片圆角
+constexpr float kIconSize = 46.0f;                                      // 图标尺寸
+constexpr float kIconInset = 16.0f;                                     // 图标左侧间距
+constexpr SkColor kQuickTitleColor = ColorFromARGB(255, 23, 31, 44);    // 标题色
+constexpr SkColor kQuickSubtitleColor = ColorFromARGB(172, 58, 70, 88); // 副标题色
+
 export namespace components {
 
 /** 使用按钮交互和样式绘制带图标的推荐卡片。 */
 class QuickCard : public Button {
 public:
-  constexpr static auto kCardRadius = 12.0f;                                  // 卡片圆角
-  constexpr static auto kIconSize = 46.0f;                                    // 图标尺寸
-  constexpr static auto kIconInset = 16.0f;                                   // 图标左侧间距
-  constexpr static auto kQuickTitleColor = ColorFromARGB(255, 23, 31, 44);    // 标题色
-  constexpr static auto kQuickSubtitleColor = ColorFromARGB(172, 58, 70, 88); // 副标题色
-
   /**
    * 创建快捷入口卡片。
    * @param title 标题
