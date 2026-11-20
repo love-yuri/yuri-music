@@ -54,6 +54,17 @@ cmake --build build
 ./build/yuri-music.exe
 ```
 
+Windows 一键 Release 编译（需先安装上述依赖及 Visual Studio C++ 桌面开发工具）：
+
+```bat
+yuri-music.bat
+```
+
+脚本会自动加载 x64 MSVC 环境，使用 `build/release` 作为独立构建目录。
+编译后的 `yuri-music.exe`、运行时 DLL、`resources/` 和 `script/` 均输出到
+项目根目录的 `output/`，运行 `output/yuri-music.exe` 即可启动。
+Windows Release 程序启动时不显示控制台窗口，Debug 构建保留控制台输出。
+
 ## 项目结构
 
 ```text

@@ -20,6 +20,13 @@ file(GLOB CXX_MODULES
 
 add_executable(${PROJECT_NAME} ${CXX_MODULES} src/main.cpp)
 
+if(WIN32)
+    set_target_properties(${PROJECT_NAME} PROPERTIES WIN32_EXECUTABLE "$<CONFIG:Release>")
+    if(MSVC)
+        target_link_options(${PROJECT_NAME} PRIVATE "$<$<CONFIG:Release>:/ENTRY:mainCRTStartup>")
+    endif()
+endif()
+
 # 配置模块支持
 target_sources(${PROJECT_NAME}
     PUBLIC
