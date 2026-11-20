@@ -11,10 +11,14 @@ using namespace ui::layout;
 using namespace ui::widgets;
 using namespace skia;
 
-constexpr float kMenuRadius = 12.0f;        // 导航按钮圆角
-constexpr float kMenuFontSize = 24.0f;      // 导航字号
-constexpr int kSelectedBorderAlpha = 108;   // 选中时的边线透明度
-constexpr int kHoveredBackgroundAlpha = 62; // 悬停时的背景透明度
+constexpr float kMenuRadius = 12.0f;             // 导航按钮圆角
+constexpr float kMenuFontSize = 24.0f;           // 导航字号
+constexpr SkColor kActiveMarkColor = 0xffff4c77; // 选中标记颜色
+constexpr float kActiveMarkLeft = 7.0f;          // 选中标记距左侧的距离
+constexpr float kActiveMarkWidth = 3.0f;         // 选中标记宽度
+constexpr float kActiveMarkHeight = 20.0f;       // 选中标记高度
+constexpr int kSelectedBorderAlpha = 108;        // 选中时的边线透明度
+constexpr int kHoveredBackgroundAlpha = 62;      // 悬停时的背景透明度
 
 /**
  * 生成导航按钮各个交互状态的样式。
@@ -42,6 +46,12 @@ public:
    */
   void setActive(bool active);
 
+  /**
+   * 绘制导航按钮和当前页面的选中标记。
+   * @param canvas 目标画布
+   */
+  void paint(SkCanvas *canvas) override;
+
 private:
   bool active_ = false; // 是否选中
 };
@@ -62,6 +72,20 @@ void MenuButton::setActive(const bool active) {
   if (active_ == active) return;
   active_ = active;
   set_style(makeMenuStyles(active));
+}
+
+void MenuButton::paint(SkCanvas *canvas) {
+  IconButton::paint(canvas);
+  if (!active_) return;
+
+  SkPaint mark;
+  mark.setAntiAlias(true);
+  mark.setColor(kActiveMarkColor);
+  const auto rect = SkRect::MakeXYWH(
+    kActiveMarkLeft, (height() - kActiveMarkHeight) * 0.5f, kActiveMarkWidth, kActiveMarkHeight
+  );
+  constexpr auto radius = kActiveMarkWidth * 0.5f;
+  canvas->drawRoundRect(rect, radius, radius, mark);
 }
 
 } // namespace components
