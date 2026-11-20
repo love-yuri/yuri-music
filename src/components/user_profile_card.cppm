@@ -112,6 +112,17 @@ UserProfileCard::~UserProfileCard() {
 void UserProfileCard::layout_children() {
   render_bg.update(local_bounds());
   render_border.update(local_bounds());
+
+  if (compact_) {
+    constexpr float kTextX = 46.0f;
+    const float text_w = std::max(0.0f, width_ - kTextX - 2.0f);
+    name_text.update(SkRect::MakeXYWH(kTextX, 0.0f, text_w, height_));
+  } else {
+    constexpr float kTextX = 116.0f;
+    const float text_w = std::max(0.0f, width_ - kTextX - 30.0f);
+    name_text.update(SkRect::MakeXYWH(kTextX, 48.0f, text_w, 34.0f));
+    status_text.update(SkRect::MakeXYWH(kTextX, 88.0f, text_w, 22.0f));
+  }
 }
 
 void UserProfileCard::paint(SkCanvas *canvas) {
@@ -151,17 +162,6 @@ void UserProfileCard::updateTextNodes() {
   status_text.set_text(user_profile_store.status());
   avatar_text.set_text(avatarLabel());
   loadAvatarImage(user_profile_store.avatarUrl());
-
-  if (compact_) {
-    constexpr float text_x = 46.0f;
-    const float text_w = std::max(0.0f, width_ - text_x - 2.0f);
-    name_text.update(SkRect::MakeXYWH(text_x, 0.0f, text_w, height_));
-  } else {
-    constexpr float text_x = 116.0f;
-    const float text_w = std::max(0.0f, width_ - text_x - 30.0f);
-    name_text.update(SkRect::MakeXYWH(text_x, 48.0f, text_w, 34.0f));
-    status_text.update(SkRect::MakeXYWH(text_x, 88.0f, text_w, 22.0f));
-  }
 }
 
 void UserProfileCard::loadAvatarImage(const std::string_view url) {
