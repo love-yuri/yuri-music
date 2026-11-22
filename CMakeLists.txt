@@ -18,7 +18,7 @@ file(GLOB CXX_MODULES
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/*.cppm
 )
 
-add_executable(${PROJECT_NAME} ${CXX_MODULES} src/main.cpp)
+add_executable(${PROJECT_NAME} src/main.cpp)
 
 # 配置模块支持
 target_sources(${PROJECT_NAME}
