@@ -12,12 +12,26 @@ allowed-tools: Read, Edit, Write, Glob, Grep, Bash
 
 ### 命名规范
 
-1. **函数**: 小驼峰 (`addTask`, `getPlayerBar`)
+1. **函数**: 统一使用小写下划线命名（`snake_case`），如 `set_font`、`add_task`、`size_constraints`
+   - 成员函数、全局函数、辅助函数均遵循此规则
+   - 简单属性读取直接使用属性名，不加 `get_` 前缀，如 `height()`、`size_constraints()`；对应 setter 使用 `set_` 前缀
+   - 构造函数、析构函数和运算符遵循 C++ 语法；第三方接口调用与重写保留其要求的名称
 2. **类型**: 大驼峰 (`ThreadPool`, `PlayerBar`, `SongInfo`)
 3. **变量**: 下划线命名 (`player_bar`, `cover_image`)
-   - 类私有变量且仅有一个单词时添加 `_` 后缀 (`name_`, `bg_`, `alpha_`)
-   - 两个及以上单词不加后缀 (`player_bar`, `cover_bg`, `text_alpha`)
+   - 类的 private 和 protected 成员变量统一添加 `_` 后缀，不区分单词数量，如 `name_`、`size_constraints_`、`render_text_`；静态成员变量同样遵循此规则
+   - public 数据成员、参数、局部变量和普通全局变量不加 `_` 后缀，如 `item_clicked`、`player_bar`、`cover_image`
+   - 常量按下面的常量规则命名，不因访问权限添加 `_` 后缀
 4. **常量**: `constexpr` 优先于 `const`，命名用 `k` 前缀大驼峰 (`kBarHeight`, `kCoverSize`)
+
+### 渐进统一命名
+
+- 在功能开发或修复时，顺带统一本次已经修改文件的命名，并同步必要的调用处与重写声明。
+- 不为统一命名批量修改无关文件；命名调整随对应功能一起提交，避免全仓库重命名。
+
+### 类成员排列规范
+
+1. 类内的成员函数和成员变量统一按 `public` → `protected` → `private` 的访问权限顺序组织；没有成员的访问区块可省略。
+2. `class` 的各访问区块必须显式写出访问说明符；`struct` 的默认 `public` 可省略，`protected` 和 `private` 仍需显式声明。同一访问权限的成员集中声明，避免交替出现多个相同访问区块。
 
 ### 注释规范
 
@@ -35,12 +49,6 @@ allowed-tools: Read, Edit, Write, Glob, Grep, Bash
    - 前向声明放在文件顶部（带 Doxygen 注释）
    - 实现放在 namespace 外部
 4. 类成员函数的声明和实现严格分离（除非特别短，如仅一行的内联 getter）
-5. 文件前部集中放常量、辅助函数的前向声明和类型声明，所有函数实现集中放在声明区之后
-
-### 模块规范
-
-1. 模块内部使用的类型、常量和函数直接在模块中声明，省略 `export`，无需为此添加匿名命名空间
-2. 同一个命名空间包含对外接口和内部类型时，只在对外声明上加 `export`
 
 ### 代码风格
 
@@ -48,7 +56,7 @@ allowed-tools: Read, Edit, Write, Glob, Grep, Bash
 2. **代码尽量一行写完**，不要出现以下情况：
    ```cpp
    // BAD - 参数拆行但不够美观
-   void PlayerBar::drawVolumeBar(SkCanvas *canvas, const float x, const float cy,
+   void PlayerBar::draw_volume_bar(SkCanvas *canvas, const float x, const float cy,
      const float w) const {
    ```
    除非多行参数排列非常整齐好看（如多个长参数对齐排列）

@@ -30,6 +30,10 @@ target_sources(${PROJECT_NAME}
 # 链接所需依赖
 include(cmake/yuri-lib.cmake)
 include(cmake/web-view2.cmake)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
+    target_link_libraries(${PROJECT_NAME} PRIVATE PkgConfig::GIO)
+endif()
 include(cmake/bass.cmake)
 include(cmake/qq-music-api.cmake)
 include(cmake/ico.cmake)

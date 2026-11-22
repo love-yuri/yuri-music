@@ -16,6 +16,9 @@ using namespace ui::widgets;
 using namespace ui::render;
 using namespace skia;
 
+/** 在后台线程打开 QQ 音乐登录窗口，并在关闭后刷新资料。 */
+void open_qq_music_login();
+
 export namespace pages {
 
 class LibraryPage : public Border {
@@ -30,20 +33,13 @@ public:
   ~LibraryPage() override;
 
 private:
-  /**
-   * 打开 QQ 音乐登录窗口。
-   */
-  void openQqMusicLogin();
+  /** 更新登录按钮文本。 */
+  void update_login_button_text() const;
 
-  /**
-   * 更新登录按钮文本
-   */
-  void updateLoginButtonText() const;
-
-  Button *login_button{}; // QQ 音乐登录按钮
+  Button *login_button_ {}; // QQ 音乐登录按钮
 };
 
-LibraryPage::LibraryPage(Widget *parent) : Border(parent) {
+LibraryPage::LibraryPage(Widget *const parent) : Border(parent) {
   set_background(ColorFromARGB(104, 255, 255, 255));
   set_padding(Insets(28.0f, 0.0f, 28.0f, 8.0f));
   auto *const content = new Widget(this);
@@ -66,40 +62,41 @@ LibraryPage::LibraryPage(Widget *parent) : Border(parent) {
   profile_card->set_preferred_size(520.0f, 214.0f);
   profile_card->set_margin(Insets(8.0f, 20.0f, 8.0f, 22.0f));
 
-  login_button = new Button("登录 QQ 音乐", content);
-  login_button->set_horizontal_alignment(HorizontalAlignment::Center);
-  login_button->set_preferred_size(180.0f, 44.0f);
-  const ButtonStyle login_style{
+  login_button_ = new Button("登录 QQ 音乐", content);
+  login_button_->set_horizontal_alignment(HorizontalAlignment::Center);
+  login_button_->set_preferred_size(180.0f, 44.0f);
+  const ButtonStyle login_style {
     .background = 0xff1fb961,
     .foreground = skia_colors::white,
     .border_width = 0.0f,
     .radius = 8.0f,
   };
-  ButtonStyles styles{ login_style, login_style, login_style, login_style };
+  ButtonStyles styles { login_style, login_style, login_style, login_style };
   styles.hovered.background = 0xff19a855;
   styles.pressed.background = 0xff168d49;
   styles.disabled.background = 0xffa6c9b4;
-  login_button->set_style(styles);
-  login_button->clicked.connect<&LibraryPage::openQqMusicLogin>(this);
-  store::user_profile_store.status_changed.connect<&LibraryPage::updateLoginButtonText>(this);
-  updateLoginButtonText();
+  login_button_->set_style(styles);
+  // Signal 不持有回调对象，保留静态函数指针供按钮使用。
+  static auto login_clicked = &open_qq_music_login;
+  login_button_->clicked.connect(login_clicked);
+  store::user_profile_store.status_changed.connect<&LibraryPage::update_login_button_text>(this);
+  update_login_button_text();
 }
 
 LibraryPage::~LibraryPage() {
   store::user_profile_store.status_changed.disconnect(this);
 }
 
-// ReSharper disable once CppMemberFunctionMayBeStatic
-void LibraryPage::openQqMusicLogin() {
-  thread_manager->addTask([] {
-    webview2::launchQQMusicLogin();
-    store::user_profile_store.reload();
-  });
-}
-
-void LibraryPage::updateLoginButtonText() const {
+void LibraryPage::update_login_button_text() const {
   const auto &profile = store::user_profile_store;
-  login_button->set_text(profile.loggedIn() ? "刷新个人信息" : "登录 QQ 音乐");
+  login_button_->set_text(profile.loggedIn() ? "刷新个人信息" : "登录 QQ 音乐");
 }
 
 } // namespace pages
+
+void open_qq_music_login() {
+  thread_manager->addTask([] {
+    webview2::launch_qq_music_login();
+    store::user_profile_store.reload();
+  });
+}

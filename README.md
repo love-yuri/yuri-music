@@ -11,6 +11,7 @@
 - QQ 音乐账号登录与数据访问
 - 歌曲播放控制
 - Windows 与 Linux Wayland 桌面支持
+- Linux 托盘：关闭主窗口后继续播放，托盘菜单仅提供「退出」
 
 ## 项目依赖
 
@@ -35,6 +36,7 @@
     `libwebkit2gtk-4.1-dev`）
 - Linux 版需要原生 Wayland 会话。窗口后端的构建依赖见
   [Pixel Journey 构建文档](libs/pixel-journey/README.md#快速开始)。
+- Linux 托盘使用 GIO（`gio-2.0`，由 GLib 提供）。
 
 ## 构建与运行
 
@@ -75,6 +77,12 @@ yuri-music.bat
 编译后进入 `output/`，Linux 运行 `./yuri-music`，Windows 运行 `yuri-music.exe`。
 Windows 脚本会自动加载 x64 MSVC 环境。
 Windows Release 程序启动时不显示控制台窗口，Debug 构建保留控制台输出。
+
+### Waybar 托盘
+
+在 Waybar 的 `modules-right`（或其它模块列表）中启用 `"tray"` 即可。
+托盘注册成功后，关闭主窗口不会停止播放。左键双击 `yuri-music` 图标可重新打开主窗口，
+右键菜单仅提供「退出」。未注册托盘时，关闭窗口会直接退出。
 
 ## 项目结构
 
