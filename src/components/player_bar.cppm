@@ -82,14 +82,13 @@ int parseTimeText(std::string_view text);
 void drawPrevIcon(SkCanvas *c, float cx, float cy, const SkPaint &p);
 
 /**
- * 绘制播放图标（居中三角）。
+ * 绘制播放图标，使三角形重心与按钮圆心重合。
  * @param c Skia 画布
- * @param cx 图标中心 X 坐标
- * @param cy 图标中心 Y 坐标
- * @param sz 三角尺寸
+ * @param cx 按钮圆心 X 坐标
+ * @param cy 按钮圆心 Y 坐标
  * @param p 画笔
  */
-void drawPlayIcon(SkCanvas *c, float cx, float cy, float sz, const SkPaint &p);
+void draw_play_icon(SkCanvas *c, float cx, float cy, const SkPaint &p);
 
 /**
  * 绘制暂停图标（双竖线）。
@@ -964,7 +963,7 @@ void PlayerBar::paint(SkCanvas *canvas) {
     } else if (playing_) {
       drawPauseIcon(canvas, btn_play_cx, btn_cy, btn);
     } else {
-      drawPlayIcon(canvas, btn_play_cx, btn_cy, 14.0f, btn);
+      draw_play_icon(canvas, btn_play_cx, btn_cy, btn);
     }
     canvas->restore();
   }
@@ -1229,14 +1228,17 @@ void drawPrevIcon(SkCanvas *c, float cx, float cy, const SkPaint &p) {
   c->drawPath(b.detach(), p);
 }
 
-// 播放图标：居中三角
-void drawPlayIcon(SkCanvas *c, float cx, float cy, float sz, const SkPaint &p) {
-  SkPathBuilder b;
-  b.moveTo(SkPoint::Make(cx + sz * 0.42f, cy));
-  b.lineTo(SkPoint::Make(cx - sz * 0.38f, cy - sz * 0.55f));
-  b.lineTo(SkPoint::Make(cx - sz * 0.38f, cy + sz * 0.55f));
-  b.close();
-  c->drawPath(b.detach(), p);
+void draw_play_icon(SkCanvas *c, const float cx, const float cy, const SkPaint &p) {
+  constexpr float kTriangleWidth = 16.0f;
+  constexpr float kTriangleHalfHeight = 10.0f;
+  const float base_x = cx - kTriangleWidth / 3.0f;
+
+  SkPathBuilder path;
+  path.moveTo(SkPoint::Make(base_x + kTriangleWidth, cy));
+  path.lineTo(SkPoint::Make(base_x, cy - kTriangleHalfHeight));
+  path.lineTo(SkPoint::Make(base_x, cy + kTriangleHalfHeight));
+  path.close();
+  c->drawPath(path.detach(), p);
 }
 
 void drawPauseIcon(SkCanvas *c, float cx, float cy, const SkPaint &p) {
