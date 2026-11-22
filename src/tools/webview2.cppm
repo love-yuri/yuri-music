@@ -613,8 +613,11 @@ void onWindowDestroy(GtkWidget *widget, gpointer user_data) {
 }
 
 int runLoginWindow() {
+  if (gdk_display_get_default() == nullptr) {
+    gdk_set_allowed_backends("wayland");
+  }
   if (gtk_init_check(nullptr, nullptr) == FALSE) {
-    yuri::error("初始化 GTK 失败: 无法连接到显示服务器");
+    yuri::error("初始化 GTK 失败: 无法连接到 Wayland 合成器");
     return 1;
   }
 

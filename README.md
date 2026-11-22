@@ -10,7 +10,7 @@
 - 首页、浏览、搜索、音乐库、收藏和最近播放页面
 - QQ 音乐账号登录与数据访问
 - 歌曲播放控制
-- Windows 与 Linux 桌面支持
+- Windows 与 Linux Wayland 桌面支持
 
 ## 项目依赖
 
@@ -33,6 +33,8 @@
   - Windows：WebView2
   - Linux：WebKitGTK（Arch 安装 `webkit2gtk-4.1`，Debian/Ubuntu 安装
     `libwebkit2gtk-4.1-dev`）
+- Linux 版需要原生 Wayland 会话。窗口后端的构建依赖见
+  [Pixel Journey 构建文档](libs/pixel-journey/README.md#快速开始)。
 
 ## 构建与运行
 
