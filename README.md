@@ -12,6 +12,7 @@
 - 歌曲播放控制
 - Windows 与 Linux Wayland 桌面支持
 - Linux 托盘：关闭主窗口后继续播放，托盘菜单仅提供「退出」
+- Waybar 歌词：在状态栏显示当前播放的 QQ 音乐歌词
 
 ## 项目依赖
 
@@ -83,6 +84,28 @@ Windows Release 程序启动时不显示控制台窗口，Debug 构建保留控�
 在 Waybar 的 `modules-right`（或其它模块列表）中启用 `"tray"` 即可。
 托盘注册成功后，关闭主窗口不会停止播放。左键双击 `yuri-music` 图标可重新打开主窗口，
 右键菜单仅提供「退出」。未注册托盘时，关闭窗口会直接退出。
+
+### Waybar 歌词
+
+在 Waybar 的 `modules-center`（或其它模块列表）中加入 `"custom/yuri-lyrics"`，
+并在配置顶层添加以下模块。将 `exec` 中的路径改成实际的绝对路径；
+`yuri-music-waybar` 随应用一起构建，位于 `build/` 或一键编译的 `output/` 中。
+
+```jsonc
+"custom/yuri-lyrics": {
+  "exec": "/绝对路径/yuri-music-waybar",
+  "interval": 1,
+  "format": "{text}",
+  "max-length": 48,
+  "escape": true,
+  "hide-empty-text": true,
+  "tooltip": false
+}
+```
+
+重新加载 Waybar 后，播放有时间轴歌词的歌曲即可显示当前行。暂停时保留当前行，
+拖动进度或切歌后会更新，窗口隐藏到托盘时也会继续同步。没有歌词、停止播放或应用退出时模块隐藏。
+歌词由 QQ 音乐单独提供，即使使用本地音频缓存，获取歌词仍需要网络。
 
 ## 项目结构
 

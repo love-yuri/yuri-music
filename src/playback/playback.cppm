@@ -13,6 +13,9 @@ import yuri.core;
 import models;
 import qq_music_api;
 import yuri.ui.runtime;
+#ifdef __linux__
+import lyrics;
+#endif
 
 namespace {
 
@@ -258,6 +261,14 @@ public:
    */
   [[nodiscard]] double positionSeconds() const;
 
+#ifdef __linux__
+  /**
+   * 从 Waybar 线程读取当前歌词，不依赖窗口渲染。
+   * @return 当前歌词，无可显示歌词时为空
+   */
+  [[nodiscard]] std::string current_lyric() const;
+#endif
+
   Signal<const SongInfo &> currentSongChanged{};        // 当前歌曲变化事件
   Signal<bass24::PlaybackState> playbackStateChanged{}; // 播放状态变化事件
   Signal<double> playbackDurationChanged{};             // 播放时长变化事件
@@ -307,6 +318,22 @@ private:
   /** 处理底层自然播放完成事件。 */
   void onBassFinished();
 
+#ifdef __linux__
+  /** 一次播放对应的歌词快照。 */
+  struct LyricSnapshot {
+    std::atomic_bool ready;          // 后台任务是否已发布歌词
+    std::vector<lyrics::Line> lines; // 已按时间排序的歌词
+  };
+
+  /**
+   * 在后台为当前播放请求加载歌词。
+   * @param mid 当前歌曲 mid
+   */
+  void request_lyrics(std::string mid);
+
+  std::atomic<std::shared_ptr<LyricSnapshot>> lyrics_ = nullptr; // 当前歌词快照
+#endif
+
   std::string context_id;                               // 当前播放上下文标识
   std::vector<SongInfo> context_songs;                  // 当前播放上下文歌曲
   std::optional<std::size_t> context_index;             // 当前上下文游标
@@ -314,7 +341,6 @@ private:
   std::vector<PlaybackEntry> history;                   // 已播放历史
   std::deque<SongInfo> next_queue;                      // 显式下一首队列
   std::mt19937 random_engine{ std::random_device{}() }; // 随机播放引擎
-  std::atomic_uint64_t playback_generation;             // 播放请求版本
   bool random_playback = false;                         // 是否随机播放
   bool context_complete = true;                         // 当前上下文是否已加载完整
   bool random_next_pending = false;                     // 是否等待完整上下文后随机播放
@@ -473,6 +499,35 @@ double PlaybackController::positionSeconds() const {
   return bass24::bass24_player.positionSeconds();
 }
 
+#ifdef __linux__
+std::string PlaybackController::current_lyric() const {
+  const auto snapshot = lyrics_.load();
+  if (!snapshot || !snapshot->ready.load(std::memory_order_acquire) || snapshot->lines.empty()) {
+    return {};
+  }
+  const auto state = bass24::bass24_player.state();
+  if (state == bass24::PlaybackState::loading || state == bass24::PlaybackState::stopped) {
+    return {};
+  }
+  const auto position_ms = static_cast<std::int64_t>(positionSeconds() * 1000.0);
+  if (bass24::bass24_player.state() == bass24::PlaybackState::stopped) {
+    return {};
+  }
+  return std::string(lyrics::line_at(snapshot->lines, position_ms));
+}
+
+void PlaybackController::request_lyrics(std::string mid) {
+  const auto snapshot = std::make_shared<LyricSnapshot>();
+  lyrics_.store(snapshot);
+  thread_manager->addTask([mid = std::move(mid), request = std::weak_ptr(snapshot)] {
+    if (const auto pending = request.lock()) {
+      pending->lines = lyrics::parse_lrc(qqmusic_api::song::get_song_lyrics(mid));
+      pending->ready.store(true, std::memory_order_release);
+    }
+  });
+}
+#endif
+
 void PlaybackController::playEntry(PlaybackEntry entry) {
   if (entry.song.mid.empty()) {
     yuri::warn("歌曲播放信息缺失，无法播放");
@@ -482,6 +537,9 @@ void PlaybackController::playEntry(PlaybackEntry entry) {
   current_entry = std::move(entry);
   currentSongChanged.emit(current_entry->song);
   beginPlayback(current_entry->song);
+#ifdef __linux__
+  request_lyrics(current_entry->song.mid);
+#endif
 }
 
 void PlaybackController::rememberCurrent() {
@@ -495,7 +553,9 @@ void PlaybackController::rememberCurrent() {
 }
 
 void PlaybackController::beginPlayback(const SongInfo &song) {
-  const auto generation = playback_generation.fetch_add(1) + 1;
+#ifdef __linux__
+  lyrics_.store(nullptr);
+#endif
   const auto formats = preferredFormats(song);
   constexpr auto kCacheDirectory = "musics";
   if (const auto path = cachedSongPath(song, formats, kCacheDirectory); !path.empty()) {
@@ -506,7 +566,7 @@ void PlaybackController::beginPlayback(const SongInfo &song) {
 
   bass24::bass24_player.stop();
   bass24::bass24_player.beginLoading();
-  thread_manager->addTask([this, song, formats, generation] {
+  thread_manager->addTask([this, song, formats] {
     try {
       std::string url;
       qqmusic_api::song::SongFileFormat source_format{};
@@ -518,10 +578,7 @@ void PlaybackController::beginPlayback(const SongInfo &song) {
         }
       }
 
-      ui::dispatcher.post([this, song, url = std::move(url), source_format, generation] mutable {
-        if (playback_generation.load() != generation) {
-          return;
-        }
+      ui::dispatcher.post([this, song, url = std::move(url), source_format] mutable {
         if (url.empty()) {
           yuri::error("获取歌曲下载链接失败: {}", song.title);
           bass24::bass24_player.stop();
@@ -538,10 +595,7 @@ void PlaybackController::beginPlayback(const SongInfo &song) {
       });
     } catch (const std::exception &e) {
       const std::string message = e.what();
-      ui::dispatcher.post([this, song, generation, message] {
-        if (playback_generation.load() != generation) {
-          return;
-        }
+      ui::dispatcher.post([this, song, message] {
         yuri::error("播放歌曲异常: {}", message);
         bass24::bass24_player.stop();
       });

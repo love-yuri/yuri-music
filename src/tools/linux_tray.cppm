@@ -1,12 +1,14 @@
 module;
 #ifdef __linux__
 #include <gio/gio.h>
+#include "waybar_lyrics_dbus.hpp"
 #endif
 
 export module linux_tray;
 
 #ifdef __linux__
 import std;
+import playback;
 
 constexpr char kWatcherName[] = "org.kde.StatusNotifierWatcher";        // 托盘服务名
 constexpr char kWatcherPath[] = "/StatusNotifierWatcher";               // 托盘服务对象路径
@@ -50,7 +52,12 @@ constexpr char kTrayXml[] = R"xml(
       <arg type="v" direction="in"/><arg type="u" direction="in"/>
     </method>
   </interface>
-</node>)xml"; // 托盘图标与静态菜单的 D-Bus 接口
+  <interface name="io.github.loveyuri.YuriMusic.Lyrics">
+    <method name="GetLine">
+      <arg name="text" type="s" direction="out"/>
+    </method>
+  </interface>
+</node>)xml"; // 托盘图标、静态菜单与歌词的 D-Bus 接口
 
 /**
  * 查找随可执行文件分发的应用图标。
@@ -198,14 +205,17 @@ void LinuxTray::run(const std::stop_token stop) {
           GDBusConnection *,
           const gchar *,
           const gchar *,
-          const gchar *,
+          const gchar *interface,
           const gchar *method,
           GVariant *const parameters,
           GDBusMethodInvocation *const invocation,
           const gpointer data
         ) {
           auto *const tray = static_cast<LinuxTray *>(data);
-          if (std::string_view(method) == "Activate") {
+          if (std::string_view(interface) == waybar_lyrics::kInterface) {
+            const auto line = playback::controller.current_lyric();
+            g_dbus_method_invocation_return_value(invocation, g_variant_new("(s)", line.c_str()));
+          } else if (std::string_view(method) == "Activate") {
             g_dbus_method_invocation_return_value(invocation, nullptr);
             tray->handle_activation();
           } else {
@@ -229,9 +239,31 @@ void LinuxTray::run(const std::stop_token stop) {
     const auto menu = g_dbus_connection_register_object(
       connection, kMenuPath, info->interfaces[1], &kCallbacks, this, nullptr, nullptr
     );
+    const auto lyric_object = g_dbus_connection_register_object(
+      connection,
+      waybar_lyrics::kPath,
+      g_dbus_node_info_lookup_interface(info, waybar_lyrics::kInterface),
+      &kCallbacks,
+      this,
+      nullptr,
+      nullptr
+    );
+    guint lyrics_owner = 0;
+    if (lyric_object) {
+      lyrics_owner = g_bus_own_name_on_connection(
+        connection,
+        waybar_lyrics::kBusName,
+        G_BUS_NAME_OWNER_FLAGS_NONE,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr
+      );
+    }
+    guint watch = 0;
     if (item && menu) {
       // 托盘服务重启后，使用同一对 D-Bus 对象重新注册图标。
-      const auto watch = g_bus_watch_name_on_connection(
+      watch = g_bus_watch_name_on_connection(
         connection,
         kWatcherName,
         G_BUS_NAME_WATCHER_FLAGS_NONE,
@@ -262,10 +294,18 @@ void LinuxTray::run(const std::stop_token stop) {
         this,
         nullptr
       );
-      while (!stop.stop_requested()) {
-        g_main_context_iteration(context_, TRUE);
-      }
+    }
+    while (!stop.stop_requested()) {
+      g_main_context_iteration(context_, TRUE);
+    }
+    if (watch) {
       g_bus_unwatch_name(watch);
+    }
+    if (lyrics_owner) {
+      g_bus_unown_name(lyrics_owner);
+    }
+    if (lyric_object) {
+      g_dbus_connection_unregister_object(connection, lyric_object);
     }
     if (menu) {
       g_dbus_connection_unregister_object(connection, menu);

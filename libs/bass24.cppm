@@ -110,6 +110,12 @@ public:
   [[nodiscard]] double positionSeconds() const;
 
   /**
+   * 读取最新播放状态，可在非 UI 线程调用。
+   * @return 当前播放状态
+   */
+  [[nodiscard]] PlaybackState state() const noexcept;
+
+  /**
    * 设置播放器音量。
    * @param value 目标音量，范围会被限制到 0..1
    * @return 音量状态保存成功，且当前流音量设置成功时返回 true
@@ -174,13 +180,13 @@ private:
    */
   void releaseStream();
 
-  mutable std::mutex mutex_{}; // 保护 BASS 句柄和播放器状态
+  mutable std::mutex mutex_;   // 保护 BASS 句柄和播放器状态
   HSTREAM stream_{};           // 当前播放流句柄，0 表示未打开
   HSYNC end_sync{};            // 当前播放完成同步事件句柄
   HSYNC stall_sync{};          // 当前播放缓冲状态同步事件句柄
   HPLUGIN flac_plugin{};       // BASSFLAC 插件句柄
   bool initialized_{ false };  // BASS 设备和插件是否已初始化
-  std::atomic<PlaybackState> playback_state{ PlaybackState::stopped }; // 当前播放状态
+  std::atomic<PlaybackState> playback_state_{ PlaybackState::stopped }; // 当前播放状态
   float volume_{ 1.0f };                                               // 当前音量，范围 0..1
   double duration_seconds{ 0.0 };                                      // 当前流总时长，未知时为 0
   std::filesystem::path current_path{}; // 当前本地播放文件，网络流时为空
@@ -391,6 +397,10 @@ double BassPlayer::positionSeconds() const {
   return seconds == -1.0 ? 0.0 : seconds;
 }
 
+PlaybackState BassPlayer::state() const noexcept {
+  return playback_state_.load();
+}
+
 bool BassPlayer::setVolume(const float value) {
   std::lock_guard lock(mutex_);
   const float next_volume = std::clamp(value, 0.0f, 1.0f);
@@ -475,24 +485,25 @@ bool BassPlayer::installPlaybackSyncs() {
   return true;
 }
 
-void CALLBACK BassPlayer::onPlaybackEnded(const HSYNC, const DWORD, const DWORD, void *const user) {
+void CALLBACK BassPlayer::onPlaybackEnded(const HSYNC /*unused*/, const DWORD /*unused*/, const DWORD /*unused*/, void *const user) {
   auto *const player = static_cast<BassPlayer *>(user);
   player->setPlaybackState(PlaybackState::stopped);
   player->finished.emit();
 }
 
 void CALLBACK
-BassPlayer::onPlaybackStalled(const HSYNC, const DWORD, const DWORD data, void *const user) {
+BassPlayer::onPlaybackStalled(const HSYNC /*unused*/, const DWORD /*unused*/, const DWORD data, void *const user) {
   auto *const player = static_cast<BassPlayer *>(user);
-  const auto current_state = player->playback_state.load();
-  if (current_state == PlaybackState::paused || current_state == PlaybackState::stopped) {
+  if (
+    const auto current_state = player->state();
+    current_state == PlaybackState::paused || current_state == PlaybackState::stopped) {
     return;
   }
   player->setPlaybackState(data == 0 ? PlaybackState::buffering : PlaybackState::playing);
 }
 
 void BassPlayer::setPlaybackState(const PlaybackState state) {
-  if (playback_state.exchange(state) == state) {
+  if (playback_state_.exchange(state) == state) {
     return;
   }
   stateChanged.emit(state);
