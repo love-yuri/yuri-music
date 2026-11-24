@@ -12,3 +12,4 @@ Checks:
   - '-readability-implicit-bool-conversion'  # 禁用：允许指针等类型隐式转换为 bool
   - '-readability-braces-around-statements' # 禁用：不强制为单条语句添加花括号
   - '-readability-convert-member-functions-to-static'  # 禁用：不强制将不访问成员变量的成员函数改为 static
+  - '-readability-avoid-nested-conditional-operator'   # 禁用： 不警告连续 ? : 运算
