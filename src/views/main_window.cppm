@@ -181,7 +181,7 @@ private:
   components::PlayerBar *player_bar_ = nullptr;           // 底部播放栏
   components::VolumeSliderPopup *volume_popup_ = nullptr; // 竖向音量浮层
   ContextMenu *song_context_menu_ = nullptr;              // 歌曲上下文菜单
-  std::optional<SongInfo> context_menu_song_ {};          // 菜单对应歌曲
+  std::optional<SongInfo> context_menu_song_;             // 菜单对应歌曲
   std::uint64_t last_position_sync_us_ = 0;               // 上次播放位置采样时间
   double playback_duration_seconds_ = 0.0;                // 当前歌曲总时长
   bass24::PlaybackState playback_state_ = bass24::PlaybackState::stopped; // 当前播放状态
@@ -190,7 +190,7 @@ private:
   bool quit_requested_ = false; // 是否从托盘请求退出
 #endif
 
-  std::unordered_map<std::string_view, components::MenuButton *> menu_buttons_ {}; // 导航按钮集合
+  std::unordered_map<std::string_view, components::MenuButton *> menu_buttons_ ; // 导航按钮集合
 
   static constexpr float kVolumePopupOverlap = 14.0f;                  // 音量浮层重叠距离
   static constexpr auto kHomeSvg = "resources/svg/home.svg";           // 首页图标路径

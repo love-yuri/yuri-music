@@ -55,6 +55,9 @@ static constexpr float kProgressMinW = 180.0f;
 static constexpr float kProgressH = 4.0f;
 static constexpr float kLeftW = 292.0f;
 static constexpr float kRightW = kLeftW;
+static constexpr float kLyricsButtonSize = 32.0f;  // 歌词按钮边长
+static constexpr float kLyricsButtonRadius = 7.0f; // 歌词按钮圆角
+static constexpr int kLyricsButton = 6;            // 歌词按钮索引
 static constexpr float kRowGap = 2.0f;
 static constexpr float kPi = 3.14159265358979323846f;
 
@@ -321,7 +324,7 @@ private:
    * @param x 鼠标 X 坐标
    * @param y 鼠标 Y 坐标
    * @return 按钮索引（0: 无, 1: 播放方式, 2: 上一首, 3: 播放, 4: 下一首, 5:
-   * 音量）
+   * 音量, 6: 歌词）
 
    */
   [[nodiscard]] int hitTestButton(float x, float y) const;
@@ -382,11 +385,12 @@ private:
   RenderBackground cover_bg;         // 封面色块
   RenderSvg cover_svg;               // 封面图标
   float cover_radius = kCoverRadius; // 封面圆角
-  sk_sp<SkImage> cover_image{};      // 专辑封面图片
+  sk_sp<SkImage> cover_image;        // 专辑封面图片
   RenderText title_text;             // 歌曲标题
   RenderText artist_text;            // 歌手名
   RenderText time_left;              // 已播放时长
   RenderText time_right;             // 总时长
+  RenderText lyrics_text_;           // 歌词按钮文字
 
   // 动画
   float slide_t = 0.0f;      // 滑入进度
@@ -407,6 +411,7 @@ private:
   float progress_cx = 0.0f;         // 进度条中心 X
   float progress_cy = 0.0f;         // 进度条中心 Y
   float progress_w = kProgressMaxW; // 进度条宽度
+  SkRect lyrics_bounds_{};          // 歌词按钮绘制和点击区域
 
   int hovered_btn = 0;               // 当前悬浮按钮
   int pressed_btn = 0;               // 本次左键按下的按钮
@@ -415,6 +420,7 @@ private:
   bool loading_ = false;             // 是否正在加载当前歌曲
   bool random_playback = false;      // 是否随机播放
   bool volume_popup_visible = false; // 音量浮层是否打开
+  bool lyrics_selected_ = false;    // 歌词按钮是否选中
   bool progress_dragging = false;    // 是否正在拖动进度
   double pending_seek_ratio = 0.0;   // 拖动结束后应用的目标进度
   double duration_seconds = 0.0;     // 当前歌曲时长
@@ -524,7 +530,7 @@ void VolumeSliderPopup::updateVolumeFromPoint(const float y) {
   mark_layout_dirty();
 }
 
-void VolumeSliderPopup::on_mouse_move(float, const float y) {
+void VolumeSliderPopup::on_mouse_move(float x, const float y) {
   if (dragging_) {
     updateVolumeFromPoint(y);
   }
@@ -538,7 +544,7 @@ void VolumeSliderPopup::on_mouse_left_pressed(const float x, const float y) {
   updateVolumeFromPoint(y);
 }
 
-void VolumeSliderPopup::on_mouse_left_released(float, const float y) {
+void VolumeSliderPopup::on_mouse_left_released(float x, const float y) {
   if (!dragging_) {
     return;
   }
@@ -546,7 +552,7 @@ void VolumeSliderPopup::on_mouse_left_released(float, const float y) {
   dragging_ = false;
 }
 
-void VolumeSliderPopup::on_mouse_wheel(float, const float delta_y) {
+void VolumeSliderPopup::on_mouse_wheel(float delta_x, const float delta_y) {
   if (std::abs(delta_y) <= 0.001f) {
     return;
   }
@@ -580,6 +586,12 @@ PlayerBar::PlayerBar(Widget *parent) : Widget(parent), cover_svg("resources/svg/
   time_right.set_font_size(11.5f);
   time_right.set_color(kTextMuted);
   time_right.set_alignment(Alignment::CenterLeft);
+
+  lyrics_text_.set_text("词");
+  lyrics_text_.set_font(font::bold_font);
+  lyrics_text_.set_font_size(19.0f);
+  lyrics_text_.set_color(kTextPrimary);
+  lyrics_text_.set_alignment(Alignment::Center);
 
   set_fixed_height(kBarHeight);
 }
@@ -764,6 +776,19 @@ void PlayerBar::layout_children() {
   time_right.update(
     SkRect::MakeXYWH(progress_cx + prog_half + kTimeGap, time_y, kTimeW, kTimeHeight)
   );
+
+  // 窗口过窄时给中间的播放控件和时长留出空间。
+  const float lyrics_x = w - kPadH - kLyricsButtonSize;
+  const float controls_right = std::max(
+    btn_volume_cx + kControlIslandPad, progress_cx + prog_half + kTimeGap + kTimeW
+  );
+  lyrics_bounds_ = {};
+  if (lyrics_x >= controls_right + kTimeGap) {
+    lyrics_bounds_ = SkRect::MakeXYWH(
+      lyrics_x, (h - kLyricsButtonSize) * 0.5f, kLyricsButtonSize, kLyricsButtonSize
+    );
+    lyrics_text_.update(lyrics_bounds_);
+  }
 }
 
 void PlayerBar::render(SkCanvas *canvas) {
@@ -915,7 +940,7 @@ void PlayerBar::paint(SkCanvas *canvas) {
     btn.setStrokeWidth(2.0f);
     btn.setStrokeCap(SkPaint::kRound_Cap);
     btn.setStrokeJoin(SkPaint::kRound_Join);
-    btn.setColor(random_playback ? kAccent : (hovered_btn == 1 ? kInk : kTextSecondary));
+    btn.setColor(random_playback ? kAccent : hovered_btn == 1 ? kInk : kTextSecondary);
     drawSideButtonHalo(canvas, btn_mode_cx, btn_cy, hovered_btn == 1);
     drawPlaybackModeIcon(canvas, btn_mode_cx, btn_cy, random_playback, btn);
     canvas->restore();
@@ -994,6 +1019,25 @@ void PlayerBar::paint(SkCanvas *canvas) {
     drawSideButtonHalo(canvas, btn_volume_cx, btn_cy, hovered_btn == 5);
     drawSpeaker(canvas, btn_volume_cx - 8.0f, btn_cy, volume_ <= 0.001f, btn);
     canvas->restore();
+  }
+
+  // 歌词按钮
+  if (!lyrics_bounds_.isEmpty()) {
+    SkPaint lyrics;
+    lyrics.setAntiAlias(true);
+    if (lyrics_selected_ || hovered_btn == kLyricsButton) {
+      lyrics.setColor(lyrics_selected_ ? kAccent : ColorFromARGB(18, 54, 65, 82));
+      canvas->drawRoundRect(lyrics_bounds_, kLyricsButtonRadius, kLyricsButtonRadius, lyrics);
+    }
+    if (!lyrics_selected_) {
+      lyrics.setStyle(SkPaint::kStroke_Style);
+      lyrics.setStrokeWidth(1.0f);
+      lyrics.setColor(hovered_btn == kLyricsButton ? kTextSecondary : kTextMuted);
+      canvas->drawRoundRect(
+        lyrics_bounds_.makeInset(0.5f, 0.5f), kLyricsButtonRadius, kLyricsButtonRadius, lyrics
+      );
+    }
+    lyrics_text_.draw(canvas);
   }
 
   // ─── 进度条 ───
@@ -1111,6 +1155,7 @@ int PlayerBar::hitTestButton(float x, float y) const {
   dx = x - btn_volume_cx;
   dy = y - btn_cy;
   if (dx * dx + dy * dy < (kSideBtnR + 8.0f) * (kSideBtnR + 8.0f)) return 5;
+  if (lyrics_bounds_.contains(x, y)) return kLyricsButton;
 
   return 0;
 }
@@ -1157,7 +1202,7 @@ void PlayerBar::on_mouse_move(const float x, const float y) {
   }
 }
 
-void PlayerBar::on_mouse_leave(float, float) {
+void PlayerBar::on_mouse_leave(float x, float y) {
   hovered_btn = 0;
   start_animation(btn_hover_t, 0.0f, 180.0f, &btn_hover_t, CubicBezier::EaseOut());
   start_animation(play_hover_t, 0.0f, 180.0f, &play_hover_t, CubicBezier::EaseOut());
@@ -1170,7 +1215,7 @@ void PlayerBar::on_mouse_left_pressed(const float x, const float y) {
     return;
   }
   pressed_btn = hitTestButton(x, y);
-  if (pressed_btn != 0 && pressed_btn != 3) {
+  if (pressed_btn >= 1 && pressed_btn <= 5 && pressed_btn != 3) {
     start_animation(btn_press_t, 1.0f, 60.0f, &btn_press_t, CubicBezier::EaseOut());
   } else if (pressed_btn == 3) {
     start_animation(play_press_t, 1.0f, 60.0f, &play_press_t, CubicBezier::EaseOut());
@@ -1187,10 +1232,10 @@ void PlayerBar::on_mouse_left_released(const float x, const float y) {
   const int pressed = std::exchange(pressed_btn, 0);
   if (pressed == 0) return;
 
-  if (pressed != 3) {
-    start_animation(btn_press_t, 0.0f, 180.0f, &btn_press_t, CubicBezier::EaseOut());
-  } else {
+  if (pressed == 3) {
     start_animation(play_press_t, 0.0f, 180.0f, &play_press_t, CubicBezier::EaseOut());
+  } else if (pressed != kLyricsButton) {
+    start_animation(btn_press_t, 0.0f, 180.0f, &btn_press_t, CubicBezier::EaseOut());
   }
   const int released_btn = hitTestButton(x, y);
   if (!visible() || !hovered_ || released_btn != pressed) return;
@@ -1207,6 +1252,10 @@ void PlayerBar::on_mouse_left_released(const float x, const float y) {
     nextClicked.emit();
   } else if (released_btn == 5) {
     volumeButtonClicked.emit();
+  } else if (released_btn == kLyricsButton) {
+    lyrics_selected_ = !lyrics_selected_;
+    lyrics_text_.set_color(lyrics_selected_ ? skia_colors::white : kTextPrimary);
+    mark_layout_dirty();
   }
 }
 
