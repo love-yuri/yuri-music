@@ -8,7 +8,10 @@ export module linux_tray;
 
 #ifdef __linux__
 import std;
-import playback;
+import lyrics;
+import models;
+import player;
+import yuri.core;
 
 constexpr char kWatcherName[] = "org.kde.StatusNotifierWatcher";        // 托盘服务名
 constexpr char kWatcherPath[] = "/StatusNotifierWatcher";               // 托盘服务对象路径
@@ -101,6 +104,11 @@ public:
   [[nodiscard]] bool registered() const;
 
 private:
+  struct LyricSnapshot {
+    std::atomic_bool ready = false;  // 歌词是否加载完成
+    std::vector<lyrics::Line> lines; // 按时间排序的歌词
+  };
+
   /**
    * 运行托盘线程并监听托盘服务的出现和消失。
    * @param stop 线程退出令牌。
@@ -116,6 +124,15 @@ private:
 
   /** 将托盘主键的连续点击识别为双击。 */
   void handle_activation();
+
+  /**
+   * 为当前歌曲后台加载歌词。
+   * @param song 当前歌曲信息
+   */
+  void request_lyrics(const std::shared_ptr<const SongInfo> &song);
+
+  /** 返回当前进度对应的歌词。 */
+  [[nodiscard]] std::string current_lyric() const;
 
   /**
    * 响应 D-Bus 菜单请求。
@@ -136,6 +153,7 @@ private:
   std::atomic_bool registered_ = false;          // 是否已向托盘服务注册
   std::optional<std::chrono::steady_clock::time_point> first_click_; // 等待配对的首次点击时间
   std::chrono::steady_clock::time_point ignore_click_until_;         // 合成事件忽略截止时间
+  std::atomic<std::shared_ptr<LyricSnapshot>> lyrics_;               // 当前歌曲的歌词快照
   std::jthread worker_;                                              // D-Bus 托盘线程
 };
 
@@ -181,9 +199,15 @@ GVariant *menu_layout(const gint id, const gint depth, GVariant *const names) {
 LinuxTray::LinuxTray(std::function<void()> on_activate, std::function<void()> on_exit) :
   on_activate_(std::move(on_activate)), on_exit_(std::move(on_exit)),
   worker_([this](const std::stop_token stop) { run(stop); }) {
+  auto &audio = player::bass24_player();
+  audio.song_changed.connect<&LinuxTray::request_lyrics>(this);
+  if (const auto song = audio.current_song()) {
+    request_lyrics(song);
+  }
 }
 
 LinuxTray::~LinuxTray() {
+  player::bass24_player().song_changed.disconnect(this);
   worker_.request_stop();
   g_main_context_wakeup(context_);
   worker_.join();
@@ -194,12 +218,40 @@ bool LinuxTray::registered() const {
   return registered_.load();
 }
 
+void LinuxTray::request_lyrics(const std::shared_ptr<const SongInfo> &song) {
+  const auto snapshot = std::make_shared<LyricSnapshot>();
+  lyrics_.store(snapshot);
+  thread_manager->addTask([mid = song->mid, pending = std::weak_ptr(snapshot)] {
+    if (const auto target = pending.lock()) {
+      target->lines = lyrics::parse_lrc(lyrics::fetch_lrc(mid));
+      target->ready.store(true, std::memory_order_release);
+    }
+  });
+}
+
+std::string LinuxTray::current_lyric() const {
+  const auto snapshot = lyrics_.load();
+  const auto &audio = player::bass24_player();
+  const auto state = audio.state();
+  if (
+    !snapshot || !snapshot->ready.load(std::memory_order_acquire)
+    || (state != player::PlaybackState::playing && state != player::PlaybackState::paused)
+  ) {
+    return {};
+  }
+  const auto position_ms = static_cast<std::int64_t>(audio.position() * 1000.0);
+  if (snapshot != lyrics_.load() || state != audio.state()) {
+    return {};
+  }
+  return std::string(lyrics::line_at(snapshot->lines, position_ms));
+}
+
 void LinuxTray::run(const std::stop_token stop) {
   // D-Bus 回调由托盘线程分发，不占用登录窗口的 GTK 主循环。
   g_main_context_push_thread_default(context_);
   auto *connection = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
   if (connection != nullptr) {
-    static constexpr GDBusInterfaceVTable kCallbacks{
+    static constexpr GDBusInterfaceVTable kCallbacks {
       .method_call =
         [](
           GDBusConnection *,
@@ -213,7 +265,7 @@ void LinuxTray::run(const std::stop_token stop) {
         ) {
           auto *const tray = static_cast<LinuxTray *>(data);
           if (std::string_view(interface) == waybar_lyrics::kInterface) {
-            const auto line = playback::controller.current_lyric();
+            const auto line = tray->current_lyric();
             g_dbus_method_invocation_return_value(invocation, g_variant_new("(s)", line.c_str()));
           } else if (std::string_view(method) == "Activate") {
             g_dbus_method_invocation_return_value(invocation, nullptr);

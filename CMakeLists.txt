@@ -3,22 +3,23 @@ cmake_minimum_required(VERSION 4.0)
 include(libs/pixel-journey/cmake/toolchain.cmake)
 include(libs/pixel-journey/cmake/cxx_modules.cmake)
 
-project(yuri-music LANGUAGES CXX)
+project(yuri-music LANGUAGES C CXX)
 
 # 收集模块文件
 file(GLOB CXX_MODULES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cppm
     ${CMAKE_CURRENT_SOURCE_DIR}/src/views/*.cppm
     ${CMAKE_CURRENT_SOURCE_DIR}/src/components/*.cppm
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/controls/player_bar/*.cppm
     ${CMAKE_CURRENT_SOURCE_DIR}/src/tools/*.cppm
     ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/*.cppm
     ${CMAKE_CURRENT_SOURCE_DIR}/src/models/*.cppm
     ${CMAKE_CURRENT_SOURCE_DIR}/src/store/*.cppm
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/playback/*.cppm
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/player/*.cppm
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/*.cppm
 )
 
-add_executable(${PROJECT_NAME} src/main.cpp)
+add_executable(${PROJECT_NAME} src/main.cpp libs/sqlite3/sqlite3.c)
 
 # 配置模块支持
 target_sources(${PROJECT_NAME}

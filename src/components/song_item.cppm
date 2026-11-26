@@ -162,9 +162,9 @@ private:
 };
 
 SongItem::SongItem(const int index, const SongInfo &info, const bool is_playing, Widget *parent) :
-  Widget(parent), index_text(std::to_string(index + 1)), title_text(info.title), artist_text(info.artist),
-  album_text(info.album_name), duration_text(info.duration), info_(std::move(info)),
-  is_playing(is_playing) {
+  Widget(parent), index_text(std::to_string(index + 1)), title_text(info.title),
+  artist_text(info.artist), album_text(info.album_name), duration_text(info.duration_text()),
+  info_(std::move(info)), is_playing(is_playing) {
   constexpr SkColor palette[] = {
     ColorFromARGB(255, 255, 99, 132),  ColorFromARGB(255, 42, 140, 233),
     ColorFromARGB(255, 16, 178, 180),  ColorFromARGB(255, 245, 155, 54),

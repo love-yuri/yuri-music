@@ -1,12 +1,14 @@
 module;
 #ifdef __linux__
 #include <glib.h>
+#include <glaze/glaze.hpp>
 #endif
 
 export module lyrics;
 
 #ifdef __linux__
 import std;
+import qq_music_api;
 
 export namespace lyrics {
 
@@ -15,6 +17,13 @@ struct Line {
   std::int64_t time_ms; // 歌词开始时间（毫秒）
   std::string text;     // 歌词文本，空行表示清屏
 };
+
+/**
+ * 获取 QQ 音乐提供的 LRC 歌词。
+ * @param mid 歌曲 mid
+ * @return 解码后的歌词文本，下载或解析失败时为空
+ */
+std::string fetch_lrc(std::string_view mid);
 
 /**
  * 解析 LRC 歌词，展开重复时间标签并按播放时间排序。
@@ -32,8 +41,6 @@ std::vector<Line> parse_lrc(std::string_view lrc);
 std::string_view line_at(const std::vector<Line> &lines, std::int64_t position_ms);
 
 } // namespace lyrics
-
-namespace {
 
 /**
  * 解析完整的十进制整数。
@@ -59,7 +66,7 @@ std::optional<int> parse_integer(std::string_view text) {
   int value = 0;
   const auto *const end = text.data() + text.size();
   const auto [ptr, error] = std::from_chars(text.data(), end, value);
-  if (error != std::errc{} || ptr != end) {
+  if (error != std::errc {} || ptr != end) {
     return std::nullopt;
   }
   return value;
@@ -96,7 +103,33 @@ std::optional<std::int64_t> parse_timestamp(const std::string_view tag) {
   return millis;
 }
 
-} // namespace
+std::string lyrics::fetch_lrc(const std::string_view mid) {
+  const auto response = curl::get(
+    "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg",
+    { { "Referer", "https://y.qq.com/" } },
+    { { "songmid", mid }, { "format", "json" }, { "platform", "yqq.json" }, { "nobase64", "0" } }
+  );
+  if (!response) {
+    return {};
+  }
+
+  struct LyricResponse {
+    int retcode = -1;  // QQ 音乐返回码
+    std::string lyric; // Base64 编码的歌词
+  } data;
+  if (
+    glz::read<glz::opts { .error_on_unknown_keys = false }>(data, *response) || data.retcode != 0
+    || data.lyric.empty()
+  ) {
+    return {};
+  }
+
+  gsize size = 0;
+  const std::unique_ptr<guchar, decltype(&g_free)> decoded(
+    g_base64_decode(data.lyric.c_str(), &size), g_free
+  );
+  return { reinterpret_cast<const char *>(decoded.get()), size };
+}
 
 std::vector<lyrics::Line> lyrics::parse_lrc(std::string_view lrc) {
   if (lrc.empty() || !g_utf8_validate_len(lrc.data(), lrc.size(), nullptr)) {
@@ -133,7 +166,7 @@ std::vector<lyrics::Line> lyrics::parse_lrc(std::string_view lrc) {
     const auto start = line.find_first_not_of(" \t");
     const auto end = line.find_last_not_of(" \t");
     const auto text =
-      start == std::string_view::npos ? std::string_view{} : line.substr(start, end - start + 1);
+      start == std::string_view::npos ? std::string_view {} : line.substr(start, end - start + 1);
     for (auto &entry : std::span(lines).subspan(first)) {
       entry.text = text;
     }
@@ -147,7 +180,7 @@ std::vector<lyrics::Line> lyrics::parse_lrc(std::string_view lrc) {
 
 std::string_view lyrics::line_at(const std::vector<Line> &lines, const std::int64_t position_ms) {
   const auto next = std::ranges::upper_bound(lines, position_ms, {}, &Line::time_ms);
-  return next == lines.begin() ? std::string_view{} : std::prev(next)->text;
+  return next == lines.begin() ? std::string_view {} : std::prev(next)->text;
 }
 
 #endif
