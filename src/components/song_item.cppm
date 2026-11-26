@@ -61,7 +61,7 @@ export namespace components {
 class SongItem : public Widget {
 public:
   /** 创建歌曲行组件 */
-  SongItem(int index, const SongInfo& info, bool is_playing = false, Widget *parent = nullptr);
+  SongItem(int index, const SongInfo &info, bool is_playing = false, Widget *parent = nullptr);
 
   /**
    * 布局child
@@ -131,19 +131,19 @@ private:
   bool drawCoverImage(SkCanvas *canvas) const;
 
   // --- 渲染节点 ---
-  RenderText index_text{};                         // 序号
-  RenderBackground cover_bg{};                     // 封面背景
-  RenderSvg cover_svg{ "resources/svg/play.svg" }; // 封面 SVG
-  float cover_radius = kCoverRadius;               // 封面圆角
-  RenderText title_text{};                         // 标题
-  RenderText artist_text{};                        // 歌手
-  RenderText album_text{};                         // 专辑名
-  RenderText duration_text{};                      // 时长
-  RenderBackground hover_bg{};                     // 行背景（覆盖整行）
-  float hover_radius = 12.0f;                      // 行背景圆角
-  SongInfo info_;                                  // 歌曲信息
-  SkColor cover_color = kCoverColor;               // 封面主色
-  sk_sp<SkImage> cover_image{};                    // 专辑封面图片
+  RenderText index_text;                            // 序号
+  RenderBackground cover_bg {};                     // 封面背景
+  RenderSvg cover_svg { "resources/svg/play.svg" }; // 封面 SVG
+  float cover_radius = kCoverRadius;                // 封面圆角
+  RenderText title_text;                            // 标题
+  RenderText artist_text;                           // 歌手
+  RenderText album_text;                            // 专辑名
+  RenderText duration_text;                         // 时长
+  RenderBackground hover_bg {};                     // 行背景（覆盖整行）
+  float hover_radius = 12.0f;                       // 行背景圆角
+  SongInfo info_;                                   // 歌曲信息
+  SkColor cover_color = kCoverColor;                // 封面主色
+  sk_sp<SkImage> cover_image;                       // 专辑封面图片
 
   // --- 交互状态 ---
   bool is_playing = false; // 是否播放中
@@ -267,14 +267,14 @@ SkColor SongItem::computeBackgroundColor() const noexcept {
   return bg;
 }
 
-void SongItem::on_mouse_enter(float, float) {
+void SongItem::on_mouse_enter(float x, float y) {
   // 悬浮背景渐入
   start_animation(hover_t, 1.0f, 200.0f, &hover_t, CubicBezier::EaseOut());
   // 操作按钮淡入
   start_animation(action_t, 1.0f, 200.0f, &action_t, CubicBezier::EaseOut());
 }
 
-void SongItem::on_mouse_leave(float, float) {
+void SongItem::on_mouse_leave(float x, float y) {
   window()->setCursor(glfw::CursorType::Arrow);
   // 悬浮背景渐出（比渐入稍慢，体感更柔和）
   start_animation(hover_t, 0.0f, 280.0f, &hover_t, CubicBezier::EaseOut());
@@ -293,7 +293,7 @@ void SongItem::on_mouse_left_pressed(const float x, const float y) {
   start_animation(press_t, 1.0f, 80.0f, &press_t, CubicBezier::EaseOut());
 }
 
-void SongItem::on_mouse_right_pressed(float, float) {
+void SongItem::on_mouse_right_pressed(float x, float y) {
   contextMenuRequested.emit(this);
 }
 

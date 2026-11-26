@@ -174,7 +174,8 @@ SpaceAfterTemplateKeyword: true
 # 在赋值运算符之前添加空格
 SpaceBeforeAssignmentOperators: true
 
-# SpaceBeforeCpp11BracedList: true
+# 在 C++11 花括号初始化列表前添加空格: ControlColorOverrides hovered{...} → hovered {...}
+SpaceBeforeCpp11BracedList: true
 
 # SpaceBeforeCtorInitializerColon: true
 
