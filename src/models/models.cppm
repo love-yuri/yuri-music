@@ -4,4 +4,5 @@
 
 export module models;
 
+export import :playlist_info;
 export import :song_info;

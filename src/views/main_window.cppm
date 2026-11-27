@@ -216,9 +216,10 @@ void MainWindow::setup_navigation() {
   add_page("library", "音乐库", kLibrarySvg, *new pages::LibraryPage(pages));
 
   auto *const favorites_page = new pages::FavoritesPage(pages);
-  player_bar_->previous_clicked.connect<&pages::FavoritesPage::play_previous>(favorites_page);
-  player_bar_->next_clicked.connect<&pages::FavoritesPage::play_next>(favorites_page);
-  player_bar_->playback_mode_changed.connect<&pages::FavoritesPage::set_random>(favorites_page);
+  auto &playlist = player::playlist_player();
+  player_bar_->previous_clicked.connect<&player::PlaylistPlayer::previous>(&playlist);
+  player_bar_->next_clicked.connect<&player::PlaylistPlayer::next>(&playlist);
+  player_bar_->playback_mode_changed.connect<&player::PlaylistPlayer::set_random>(&playlist);
   add_page("favorites", "我喜欢", kFavoritesSvg, *favorites_page);
   add_page("recent", "最近播放", kRecentSvg, *new pages::RecentPage(pages));
   add_page("settings", "设置", kSettingsSvg, *new pages::SettingsPage(pages));
