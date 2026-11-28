@@ -14,6 +14,9 @@ namespace player {
 /** 使用 BASS 24 实现的基础音频播放器。 */
 export class Bass24Player final : public AudioPlayer {
 public:
+  Bass24Player() : bass_() {
+  }
+
   /**
    * 打开音源并替换当前歌曲。
    * @param song_info 歌曲信息

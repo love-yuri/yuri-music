@@ -8,7 +8,7 @@ module;
 #endif
 #include "bass.h"
 
-module player:bass24;
+export module player:bass24;
 
 import std;
 import yuri.ui.runtime;
@@ -28,6 +28,7 @@ enum class ChannelActivity : DWORD {
 class Bass24 {
 public:
   /** 创建尚未打开音频流的封装实例。 */
+  // ReSharper disable once CppDefaultedSpecialMemberFunctionIsImplicitlyDeleted
   Bass24() = default;
 
   /** 释放音频流。 */
