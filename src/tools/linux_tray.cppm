@@ -8,9 +8,9 @@ export module linux_tray;
 
 #ifdef __linux__
 import std;
-import lyrics;
 import models;
 import player;
+import qq_music_api;
 import yuri.core;
 
 constexpr char kWatcherName[] = "org.kde.StatusNotifierWatcher";        // 托盘服务名
@@ -105,8 +105,8 @@ public:
 
 private:
   struct LyricSnapshot {
-    std::atomic_bool ready = false;  // 歌词是否加载完成
-    std::vector<lyrics::Line> lines; // 按时间排序的歌词
+    std::atomic_bool ready = false;                // 歌词是否加载完成
+    std::vector<qqmusic_api::song::LrcLine> lines; // 按时间排序的歌词
   };
 
   /**
@@ -197,7 +197,7 @@ GVariant *menu_layout(const gint id, const gint depth, GVariant *const names) {
 }
 
 LinuxTray::LinuxTray(std::function<void()> on_activate, std::function<void()> on_exit) :
-  on_activate_(std::move(on_activate)), on_exit_(std::move(on_exit)),
+  on_activate_(std::move(on_activate)), on_exit_(std::move(on_exit)), lyrics_(),
   worker_([this](const std::stop_token stop) { run(stop); }) {
   auto &audio = player::bass24_player();
   audio.song_changed.connect<&LinuxTray::request_lyrics>(this);
@@ -223,7 +223,7 @@ void LinuxTray::request_lyrics(const std::shared_ptr<const SongInfo> &song) {
   lyrics_.store(snapshot);
   thread_manager->addTask([mid = song->mid, pending = std::weak_ptr(snapshot)] {
     if (const auto target = pending.lock()) {
-      target->lines = lyrics::parse_lrc(lyrics::fetch_lrc(mid));
+      target->lines = qqmusic_api::song::parse_lrc(qqmusic_api::song::get_song_lyrics(mid));
       target->ready.store(true, std::memory_order_release);
     }
   });
@@ -243,7 +243,7 @@ std::string LinuxTray::current_lyric() const {
   if (snapshot != lyrics_.load() || state != audio.state()) {
     return {};
   }
-  return std::string(lyrics::line_at(snapshot->lines, position_ms));
+  return std::string(qqmusic_api::song::line_at(snapshot->lines, position_ms));
 }
 
 void LinuxTray::run(const std::stop_token stop) {
