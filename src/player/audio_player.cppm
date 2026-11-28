@@ -62,7 +62,7 @@ public:
   /** 停止播放并释放当前音源。 */
   virtual void stop() = 0;
 
-  /** 停止当前播放，或重新启动当前歌曲。 */
+  /** 暂停当前播放，或开始及恢复播放。 */
   void toggle();
 
   /**
@@ -189,7 +189,7 @@ void AudioPlayer::play_song_auto(const SongInfo &song_info) {
 
 void AudioPlayer::toggle() {
   if (state() == PlaybackState::playing || state() == PlaybackState::loading) {
-    stop();
+    pause();
   } else {
     play();
   }
